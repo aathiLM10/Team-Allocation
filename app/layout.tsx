@@ -10,7 +10,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Team Studio | Premium 3D Employee Team Allocation & Balancing System',
+  title: 'Solidpro | Premium 3D Employee Team Allocation & Balancing System',
   description:
     'Enterprise-grade balanced team allocation system distributing employees from Guindy and Vandaloor offices into White, Red, Blue, and Grey teams with joint office and gender parity.',
 };
