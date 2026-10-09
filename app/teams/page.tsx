@@ -34,6 +34,7 @@ import { TeamCard } from '@/components/teams/team-card';
 import { TeamSummary } from '@/components/teams/team-summary';
 import { ValidationSummary } from '@/components/teams/validation-summary';
 import { AllocationDiffModal } from '@/components/teams/allocation-diff-modal';
+import { GenerationModal } from '@/components/ui/generation-modal';
 
 import {
   Shuffle,
@@ -48,6 +49,7 @@ import {
   Layers,
   FileCheck2,
   FileSpreadsheet,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function TeamsPage() {
@@ -86,6 +88,8 @@ export default function TeamsPage() {
   const [showDiffModal, setShowDiffModal] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
   // Settings
   const [customSeed, setCustomSeed] = useState<string>('');
@@ -165,6 +169,7 @@ export default function TeamsPage() {
     setDiffs([]);
     setIsApproved(false);
     setEditingEmployee(null);
+    setShowSuccessBanner(false);
     setSummary({
       total: 0,
       guindy: 0,
@@ -335,7 +340,14 @@ export default function TeamsPage() {
       setShowConfirmModal(true);
       return;
     }
+    // Launch engaging team-generation animation sequence
+    setIsGenerating(true);
+  };
+
+  const handleGenerationComplete = () => {
+    setIsGenerating(false);
     executeAllocation();
+    setShowSuccessBanner(true);
   };
 
   // Reshuffle action
@@ -352,6 +364,7 @@ export default function TeamsPage() {
       setShowDiffModal(true);
     }
     setAllocations(newAlloc);
+    setShowSuccessBanner(true);
   };
 
   // Master CSV Export (Flat CSV)
@@ -389,25 +402,42 @@ export default function TeamsPage() {
   }, [employees, allocations]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-slate-50/70 bg-grid-blueprint text-slate-900 pb-20 selection:bg-blue-100 selection:text-blue-900 relative">
+      {/* Subtle Ambient Radial Glow Behind Header */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-80 bg-radial-ambient pointer-events-none -z-10"
+        aria-hidden="true"
+      />
+
       {/* Top Enterprise Application Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-700 text-white flex items-center justify-center font-bold shadow-xs">
-              <Layers className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-3.5">
+            {/* Distinctive Solidpro Logo Mark */}
+            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-center font-bold shadow-xs border border-slate-800">
+              <Layers className="w-5 h-5 text-blue-300" />
+              {/* 4 Team Color Pips */}
+              <div className="absolute -top-1 -right-1 flex gap-0.5 p-0.5 rounded-full bg-white/90 shadow-2xs border border-slate-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" title="White" />
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="Red" />
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600" title="Blue" />
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-600" title="Grey" />
+              </div>
             </div>
+
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-slate-900 leading-tight">
-                  Team Allocation &amp; Shuffle
+                <h1 className="text-base font-extrabold text-slate-950 tracking-tight leading-tight flex items-center gap-2">
+                  <span>Solidpro</span>
+                  <span className="hidden md:inline text-xs font-semibold text-slate-400">/</span>
+                  <span className="hidden md:inline text-xs font-semibold text-slate-600">Allocation Suite</span>
                 </h1>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/80">
-                  Enterprise SaaS
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                  v2.0 • 3D Studio
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Guindy &amp; Vandaloor Offices • White, Red, Blue, Grey Teams
+              <p className="text-xs text-slate-500 font-medium">
+                Guindy &amp; Vandaloor Offices • White, Red, Blue &amp; Grey Balanced Rosters
               </p>
             </div>
           </div>
@@ -645,6 +675,37 @@ export default function TeamsPage() {
         {/* STEP 4: Team Results Dashboard (When generated) */}
         {allocations && currentValidationReport && (
           <div className="space-y-6 pt-2">
+            {/* Generation / Shuffle Success Notification Banner */}
+            {showSuccessBanner && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white border border-emerald-200/90 text-emerald-950 shadow-2xs animate-fade-up">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                    <Sparkles className="w-4 h-4 text-emerald-100" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-emerald-950">Teams Generated Successfully</h3>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Balanced &amp; Validated
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      {summary.total} employees allocated into 4 balanced teams with office representation and gender parity maintained.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowSuccessBanner(false)}
+                    className="px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/80 rounded-md transition-colors cursor-pointer"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Dashboard Action Shell */}
             <div className="bg-white rounded-xl shadow-2xs border border-slate-200/90 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -731,10 +792,16 @@ export default function TeamsPage() {
               </div>
             </div>
 
-            {/* 4 Team Cards Grid */}
+            {/* 4 Team Cards Grid with Staggered Entrance */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {allocations.map((team) => (
-                <TeamCard key={team.teamName} allocation={team} />
+              {allocations.map((team, idx) => (
+                <div
+                  key={team.teamName}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${(idx + 1) * 100}ms` }}
+                >
+                  <TeamCard allocation={team} />
+                </div>
               ))}
             </div>
 
@@ -790,6 +857,12 @@ export default function TeamsPage() {
             </div>
           </div>
         )}
+        {/* Team Generation Sequence Modal */}
+        <GenerationModal
+          isOpen={isGenerating}
+          onComplete={handleGenerationComplete}
+          totalEmployees={summary.total}
+        />
       </main>
     </div>
   );

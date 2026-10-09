@@ -10,9 +10,9 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Employee Team Allocation & Shuffle Application',
+  title: 'Solidpro | Premium 3D Employee Team Allocation & Balancing System',
   description:
-    'Balanced, fair, and transparent team allocation system distributing employees from Guindy and Vandaloor offices into White, Red, Blue, and Grey teams.',
+    'Enterprise-grade balanced team allocation system distributing employees from Guindy and Vandaloor offices into White, Red, Blue, and Grey teams with joint office and gender parity.',
 };
 
 export default function RootLayout({

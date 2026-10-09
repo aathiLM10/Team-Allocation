@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { UploadCloud, CheckCircle2, AlertOctagon, Sparkles, FileText, Check } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertOctagon, Sparkles, FileText, Check, ArrowRight } from 'lucide-react';
 
 export type WorkflowStepId = 1 | 2 | 3 | 4;
 
@@ -23,8 +23,8 @@ export function WorkflowSteps({
   const steps = [
     {
       id: 1 as WorkflowStepId,
-      name: 'Upload Employees',
-      description: 'Upload CSV employee roster',
+      name: 'Upload Roster',
+      subtitle: 'Excel / CSV multi-sheet',
       icon: UploadCloud,
       isCompleted: hasFileUploaded,
       isCurrent: currentStep === 1,
@@ -32,8 +32,8 @@ export function WorkflowSteps({
     },
     {
       id: 2 as WorkflowStepId,
-      name: 'Validate Data',
-      description: 'Audit & resolve discrepancies',
+      name: 'Audit & Validate',
+      subtitle: 'Office & gender parity check',
       icon: CheckCircle2,
       isCompleted: hasFileUploaded && !hasErrors,
       isCurrent: currentStep === 2,
@@ -42,8 +42,8 @@ export function WorkflowSteps({
     },
     {
       id: 3 as WorkflowStepId,
-      name: 'Generate Teams',
-      description: 'Constrained balanced shuffle',
+      name: 'Balanced Shuffle',
+      subtitle: 'Generate 4 equal teams',
       icon: Sparkles,
       isCompleted: hasAllocated,
       isCurrent: currentStep === 3,
@@ -52,7 +52,7 @@ export function WorkflowSteps({
     {
       id: 4 as WorkflowStepId,
       name: 'Review & Export',
-      description: 'Audit metrics & download CSVs',
+      subtitle: 'Styled Excel & CSVs',
       icon: FileText,
       isCompleted: hasAllocated,
       isCurrent: currentStep === 4,
@@ -61,9 +61,9 @@ export function WorkflowSteps({
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3 sm:p-4">
+    <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-[0_4px_20px_rgba(15,23,42,0.03)] p-3 sm:p-4 transition-all">
       <nav aria-label="Workflow Steps">
-        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 relative">
           {steps.map((step, idx) => {
             const Icon = step.icon;
             const canNavigate =
@@ -75,26 +75,26 @@ export function WorkflowSteps({
                 onClick={() => {
                   if (canNavigate) onStepClick(step.id);
                 }}
-                className={`relative rounded-lg p-3 transition-all border flex items-start gap-3 select-none ${
+                className={`group relative rounded-xl p-3 transition-all duration-200 border flex items-start gap-3 select-none ${
                   step.isCurrent
-                    ? 'bg-blue-50/70 border-blue-400/80 shadow-2xs'
+                    ? 'bg-gradient-to-b from-blue-50/90 to-white border-blue-400/90 shadow-xs ring-1 ring-blue-300/40'
                     : step.isCompleted
-                    ? 'bg-slate-50/80 border-slate-200 hover:bg-slate-100/70 cursor-pointer'
+                    ? 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/70 cursor-pointer hover:border-slate-300'
                     : step.isBlocked
-                    ? 'bg-white border-slate-100 opacity-60 cursor-not-allowed'
+                    ? 'bg-white/50 border-slate-100 opacity-50 cursor-not-allowed'
                     : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer'
                 }`}
               >
-                {/* Step indicator circle */}
+                {/* Step indicator circle with glow */}
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 transition-all duration-200 shadow-2xs ${
                     step.hasErrorBadge
                       ? 'bg-rose-100 text-rose-700 ring-2 ring-rose-400'
                       : step.isCurrent
-                      ? 'bg-blue-600 text-white shadow-xs'
+                      ? 'bg-blue-600 text-white shadow-blue-500/25 shadow-md scale-105'
                       : step.isCompleted
                       ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-200 text-slate-600'
+                      : 'bg-slate-100 text-slate-500 border border-slate-200'
                   }`}
                 >
                   {step.hasErrorBadge ? (
@@ -109,7 +109,7 @@ export function WorkflowSteps({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 justify-between">
                     <span
-                      className={`text-xs font-semibold truncate ${
+                      className={`text-xs font-semibold tracking-tight truncate ${
                         step.isCurrent
                           ? 'text-blue-950 font-bold'
                           : step.isCompleted
@@ -119,16 +119,25 @@ export function WorkflowSteps({
                     >
                       {step.name}
                     </span>
-                    <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <Icon
+                      className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                        step.isCurrent
+                          ? 'text-blue-600'
+                          : step.isCompleted
+                          ? 'text-emerald-600'
+                          : 'text-slate-300'
+                      }`}
+                    />
                   </div>
-                  {step.hasErrorBadge && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-700 uppercase inline-block mt-0.5">
-                      Action Required
+                  {step.hasErrorBadge ? (
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 uppercase inline-block mt-0.5">
+                      Review Needed
                     </span>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5 font-normal">
+                      {step.subtitle}
+                    </p>
                   )}
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {step.description}
-                  </p>
                 </div>
               </li>
             );

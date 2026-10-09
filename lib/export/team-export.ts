@@ -688,6 +688,8 @@ export async function generateStyledTeamsWorkbook(
 
 /**
  * Triggers a browser download of the styled multi-sheet Excel file.
+ * Automatically falls back to the native SheetJS engine if ExcelJS encounters
+ * browser environment constraints in production.
  */
 export async function exportTeamsToStyledExcel(
   allocations: TeamAllocation[],
@@ -695,28 +697,37 @@ export async function exportTeamsToStyledExcel(
   employeeSummary: EmployeeSummary,
   fileName: string = 'Master_Employee_Team_Allocation.xlsx'
 ): Promise<void> {
-  const workbook = await generateStyledTeamsWorkbook(
-    allocations,
-    validationReport,
-    employeeSummary
-  );
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  try {
+    const workbook = await generateStyledTeamsWorkbook(
+      allocations,
+      validationReport,
+      employeeSummary
+    );
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
 
-  link.setAttribute('href', url);
-  link.setAttribute('download', fileName);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 1000);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  } catch (err) {
+    console.warn(
+      'Styled ExcelJS export encountered an issue in this browser, using reliable SheetJS fallback:',
+      err
+    );
+    const wb = generateTeamsWorkbook(allocations, validationReport, employeeSummary);
+    XLSX.writeFile(wb, fileName);
+  }
 }
 
 // ----------------------------------------------------------------------
