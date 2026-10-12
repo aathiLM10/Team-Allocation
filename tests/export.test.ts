@@ -98,27 +98,37 @@ describe('Export Services (CSV & Excel)', () => {
     expect(sheetNames).toContain('Vandaloor');
     expect(sheetNames).toContain('Summary Matrix');
 
-    // Verify Guindy sheet contains 4 teams columns + Work Location
+    // Verify Guindy sheet contains 4 parent teams with Emp Name & Gender sub-headers and Location
     const guindySheet = wb.getWorksheet('Guindy');
     expect(guindySheet).toBeDefined();
-    const guindyHeader = guindySheet!.getRow(1);
-    expect(guindyHeader.getCell(1).value).toBe('White Team');
-    expect(guindyHeader.getCell(2).value).toBe('Red Team');
-    expect(guindyHeader.getCell(3).value).toBe('Blue Team');
-    expect(guindyHeader.getCell(4).value).toBe('Grey Team');
-    expect(guindyHeader.getCell(5).value).toBe('Work Location');
-    expect(guindySheet!.getRow(2).getCell(5).value).toBe('Guindy');
+    const gRow1 = guindySheet!.getRow(1);
+    expect(gRow1.getCell(1).value).toBe('S.No');
+    expect(gRow1.getCell(2).value).toBe('White Team');
+    expect(gRow1.getCell(4).value).toBe('Red Team');
+    expect(gRow1.getCell(6).value).toBe('Blue Team');
+    expect(gRow1.getCell(8).value).toBe('Grey Team');
+    expect(gRow1.getCell(10).value).toBe('Location');
 
-    // Verify Vandaloor sheet contains 4 teams columns + Work Location
+    const gRow2 = guindySheet!.getRow(2);
+    expect(gRow2.getCell(2).value).toBe('Emp Name');
+    expect(gRow2.getCell(3).value).toBe('Gender');
+    expect(guindySheet!.getRow(3).getCell(10).value).toBe('Guindy');
+
+    // Verify Vandaloor sheet contains 4 parent teams with Emp Name & Gender sub-headers and Location
     const vandaloorSheet = wb.getWorksheet('Vandaloor');
     expect(vandaloorSheet).toBeDefined();
-    const vandaloorHeader = vandaloorSheet!.getRow(1);
-    expect(vandaloorHeader.getCell(1).value).toBe('White Team');
-    expect(vandaloorHeader.getCell(2).value).toBe('Red Team');
-    expect(vandaloorHeader.getCell(3).value).toBe('Blue Team');
-    expect(vandaloorHeader.getCell(4).value).toBe('Grey Team');
-    expect(vandaloorHeader.getCell(5).value).toBe('Work Location');
-    expect(vandaloorSheet!.getRow(2).getCell(5).value).toBe('Vandaloor');
+    const vRow1 = vandaloorSheet!.getRow(1);
+    expect(vRow1.getCell(1).value).toBe('S.No');
+    expect(vRow1.getCell(2).value).toBe('White Team');
+    expect(vRow1.getCell(4).value).toBe('Red Team');
+    expect(vRow1.getCell(6).value).toBe('Blue Team');
+    expect(vRow1.getCell(8).value).toBe('Grey Team');
+    expect(vRow1.getCell(10).value).toBe('Location');
+
+    const vRow2 = vandaloorSheet!.getRow(2);
+    expect(vRow2.getCell(2).value).toBe('Emp Name');
+    expect(vRow2.getCell(3).value).toBe('Gender');
+    expect(vandaloorSheet!.getRow(3).getCell(10).value).toBe('Vandaloor');
 
     // Verify Red Team header color
     const redSheet = wb.getWorksheet('Red Team');

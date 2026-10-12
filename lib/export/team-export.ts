@@ -566,58 +566,91 @@ export async function generateStyledTeamsWorkbook(
   });
 
   // -------------------------------------------------------------
-  // 3. GUINDY OFFICE SHEET (4 Teams Columns + Work Location)
+  // 3. GUINDY OFFICE SHEET (4 Parent Teams with Emp Name & Gender + Location)
   // -------------------------------------------------------------
   const guindySheet = workbook.addWorksheet('Guindy', {
-    views: [{ state: 'frozen', ySplit: 1 }],
+    views: [{ state: 'frozen', ySplit: 2 }],
     properties: { tabColor: { argb: 'FF0D9488' } }, // Teal
   });
 
   guindySheet.columns = [
-    { header: 'White Team', key: 'white', width: 28 },
-    { header: 'Red Team', key: 'red', width: 28 },
-    { header: 'Blue Team', key: 'blue', width: 28 },
-    { header: 'Grey Team', key: 'grey', width: 28 },
-    { header: 'Work Location', key: 'location', width: 20 },
+    { key: 'sno', width: 8 },
+    { key: 'whiteName', width: 26 },
+    { key: 'whiteGender', width: 14 },
+    { key: 'redName', width: 26 },
+    { key: 'redGender', width: 14 },
+    { key: 'blueName', width: 26 },
+    { key: 'blueGender', width: 14 },
+    { key: 'greyName', width: 26 },
+    { key: 'greyGender', width: 14 },
+    { key: 'location', width: 18 },
   ];
 
-  const guindyHeaderRow = guindySheet.getRow(1);
-  guindyHeaderRow.height = 28;
+  // Set Row 1 (Parent Headers)
+  const gR1 = guindySheet.getRow(1);
+  gR1.height = 28;
+  gR1.getCell(1).value = 'S.No';
+  gR1.getCell(2).value = 'White Team';
+  gR1.getCell(4).value = 'Red Team';
+  gR1.getCell(6).value = 'Blue Team';
+  gR1.getCell(8).value = 'Grey Team';
+  gR1.getCell(10).value = 'Location';
 
-  // Header 1: White Team
-  const gH1 = guindyHeaderRow.getCell(1);
-  gH1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-  gH1.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FF0F172A' } };
-  gH1.alignment = { vertical: 'middle', horizontal: 'center' };
-  gH1.border = { bottom: { style: 'medium', color: { argb: 'FF94A3B8' } } };
+  // Set Row 2 (Sub-headers: Emp Name & Gender)
+  const gR2 = guindySheet.getRow(2);
+  gR2.height = 24;
+  gR2.getCell(1).value = 'S.No';
+  gR2.getCell(2).value = 'Emp Name';
+  gR2.getCell(3).value = 'Gender';
+  gR2.getCell(4).value = 'Emp Name';
+  gR2.getCell(5).value = 'Gender';
+  gR2.getCell(6).value = 'Emp Name';
+  gR2.getCell(7).value = 'Gender';
+  gR2.getCell(8).value = 'Emp Name';
+  gR2.getCell(9).value = 'Gender';
+  gR2.getCell(10).value = 'Location';
 
-  // Header 2: Red Team
-  const gH2 = guindyHeaderRow.getCell(2);
-  gH2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
-  gH2.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  gH2.alignment = { vertical: 'middle', horizontal: 'center' };
-  gH2.border = { bottom: { style: 'medium', color: { argb: 'FFB91C1C' } } };
+  // Merge header cells
+  guindySheet.mergeCells('A1:A2');
+  guindySheet.mergeCells('B1:C1');
+  guindySheet.mergeCells('D1:E1');
+  guindySheet.mergeCells('F1:G1');
+  guindySheet.mergeCells('H1:I1');
+  guindySheet.mergeCells('J1:J2');
 
-  // Header 3: Blue Team
-  const gH3 = guindyHeaderRow.getCell(3);
-  gH3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-  gH3.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  gH3.alignment = { vertical: 'middle', horizontal: 'center' };
-  gH3.border = { bottom: { style: 'medium', color: { argb: 'FF1D4ED8' } } };
+  const styleHCell = (cell: ExcelJS.Cell, fillArgb: string, fontArgb: string) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
+    cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: fontArgb } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  };
 
-  // Header 4: Grey Team
-  const gH4 = guindyHeaderRow.getCell(4);
-  gH4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569' } };
-  gH4.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  gH4.alignment = { vertical: 'middle', horizontal: 'center' };
-  gH4.border = { bottom: { style: 'medium', color: { argb: 'FF334155' } } };
+  styleHCell(gR1.getCell(1), 'FF1E293B', 'FFFFFFFF');
+  styleHCell(gR1.getCell(2), 'FFE2E8F0', 'FF0F172A');
+  styleHCell(gR1.getCell(3), 'FFE2E8F0', 'FF0F172A');
+  styleHCell(gR1.getCell(4), 'FFDC2626', 'FFFFFFFF');
+  styleHCell(gR1.getCell(5), 'FFDC2626', 'FFFFFFFF');
+  styleHCell(gR1.getCell(6), 'FF2563EB', 'FFFFFFFF');
+  styleHCell(gR1.getCell(7), 'FF2563EB', 'FFFFFFFF');
+  styleHCell(gR1.getCell(8), 'FF475569', 'FFFFFFFF');
+  styleHCell(gR1.getCell(9), 'FF475569', 'FFFFFFFF');
+  styleHCell(gR1.getCell(10), 'FF0F766E', 'FFFFFFFF');
 
-  // Header 5: Work Location
-  const gH5 = guindyHeaderRow.getCell(5);
-  gH5.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
-  gH5.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  gH5.alignment = { vertical: 'middle', horizontal: 'center' };
-  gH5.border = { bottom: { style: 'medium', color: { argb: 'FF115E59' } } };
+  const styleSubHCell = (cell: ExcelJS.Cell, fillArgb: string, fontArgb: string) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
+    cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: fontArgb } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  };
+
+  styleSubHCell(gR2.getCell(1), 'FF1E293B', 'FFFFFFFF');
+  styleSubHCell(gR2.getCell(2), 'FFF1F5F9', 'FF0F172A');
+  styleSubHCell(gR2.getCell(3), 'FFF1F5F9', 'FF0F172A');
+  styleSubHCell(gR2.getCell(4), 'FFFEE2E2', 'FF991B1B');
+  styleSubHCell(gR2.getCell(5), 'FFFEE2E2', 'FF991B1B');
+  styleSubHCell(gR2.getCell(6), 'FFDBEAFE', 'FF1E40AF');
+  styleSubHCell(gR2.getCell(7), 'FFDBEAFE', 'FF1E40AF');
+  styleSubHCell(gR2.getCell(8), 'FFF3F4F6', 'FF374151');
+  styleSubHCell(gR2.getCell(9), 'FFF3F4F6', 'FF374151');
+  styleSubHCell(gR2.getCell(10), 'FF0F766E', 'FFFFFFFF');
 
   const guindyWhite = (allocations.find((t) => t.teamName === 'White Team')?.members || []).filter(
     (e) => e.office === 'Guindy'
@@ -641,10 +674,15 @@ export async function generateStyledTeamsWorkbook(
 
   for (let i = 0; i < maxGuindyRows; i++) {
     const row = guindySheet.addRow({
-      white: guindyWhite[i]?.name || '',
-      red: guindyRed[i]?.name || '',
-      blue: guindyBlue[i]?.name || '',
-      grey: guindyGrey[i]?.name || '',
+      sno: i + 1,
+      whiteName: guindyWhite[i]?.name || '',
+      whiteGender: guindyWhite[i]?.gender || '',
+      redName: guindyRed[i]?.name || '',
+      redGender: guindyRed[i]?.gender || '',
+      blueName: guindyBlue[i]?.name || '',
+      blueGender: guindyBlue[i]?.gender || '',
+      greyName: guindyGrey[i]?.name || '',
+      greyGender: guindyGrey[i]?.gender || '',
       location: 'Guindy',
     });
     row.height = 22;
@@ -652,95 +690,147 @@ export async function generateStyledTeamsWorkbook(
     const isEven = i % 2 === 0;
     const rowBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
 
-    // Col 1: White
+    // S.No
     const c1 = row.getCell(1);
-    c1.alignment = { vertical: 'middle', horizontal: 'left' };
+    c1.alignment = { vertical: 'middle', horizontal: 'center' };
     c1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c1.border = defaultBorder;
-    c1.font = { name: 'Segoe UI', size: 10, bold: !!guindyWhite[i]?.name, color: { argb: 'FF0F172A' } };
+    c1.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF64748B' } };
 
-    // Col 2: Red
+    // White Team Name & Gender
     const c2 = row.getCell(2);
     c2.alignment = { vertical: 'middle', horizontal: 'left' };
     c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c2.border = defaultBorder;
-    c2.font = { name: 'Segoe UI', size: 10, bold: !!guindyRed[i]?.name, color: { argb: 'FF991B1B' } };
+    c2.font = { name: 'Segoe UI', size: 10, bold: !!guindyWhite[i]?.name, color: { argb: 'FF0F172A' } };
 
-    // Col 3: Blue
     const c3 = row.getCell(3);
-    c3.alignment = { vertical: 'middle', horizontal: 'left' };
+    c3.alignment = { vertical: 'middle', horizontal: 'center' };
     c3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c3.border = defaultBorder;
-    c3.font = { name: 'Segoe UI', size: 10, bold: !!guindyBlue[i]?.name, color: { argb: 'FF1E40AF' } };
+    c3.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
 
-    // Col 4: Grey
+    // Red Team Name & Gender
     const c4 = row.getCell(4);
     c4.alignment = { vertical: 'middle', horizontal: 'left' };
     c4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c4.border = defaultBorder;
-    c4.font = { name: 'Segoe UI', size: 10, bold: !!guindyGrey[i]?.name, color: { argb: 'FF334155' } };
+    c4.font = { name: 'Segoe UI', size: 10, bold: !!guindyRed[i]?.name, color: { argb: 'FF991B1B' } };
 
-    // Col 5: Work Location
     const c5 = row.getCell(5);
     c5.alignment = { vertical: 'middle', horizontal: 'center' };
     c5.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c5.border = defaultBorder;
-    c5.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F766E' } };
+    c5.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+    // Blue Team Name & Gender
+    const c6 = row.getCell(6);
+    c6.alignment = { vertical: 'middle', horizontal: 'left' };
+    c6.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c6.border = defaultBorder;
+    c6.font = { name: 'Segoe UI', size: 10, bold: !!guindyBlue[i]?.name, color: { argb: 'FF1E40AF' } };
+
+    const c7 = row.getCell(7);
+    c7.alignment = { vertical: 'middle', horizontal: 'center' };
+    c7.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c7.border = defaultBorder;
+    c7.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+    // Grey Team Name & Gender
+    const c8 = row.getCell(8);
+    c8.alignment = { vertical: 'middle', horizontal: 'left' };
+    c8.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c8.border = defaultBorder;
+    c8.font = { name: 'Segoe UI', size: 10, bold: !!guindyGrey[i]?.name, color: { argb: 'FF334155' } };
+
+    const c9 = row.getCell(9);
+    c9.alignment = { vertical: 'middle', horizontal: 'center' };
+    c9.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c9.border = defaultBorder;
+    c9.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+    // Location
+    const c10 = row.getCell(10);
+    c10.alignment = { vertical: 'middle', horizontal: 'center' };
+    c10.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c10.border = defaultBorder;
+    c10.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F766E' } };
   }
 
   // -------------------------------------------------------------
-  // 4. VANDALOOR OFFICE SHEET (4 Teams Columns + Work Location)
+  // 4. VANDALOOR OFFICE SHEET (4 Parent Teams with Emp Name & Gender + Location)
   // -------------------------------------------------------------
   const vandaloorSheet = workbook.addWorksheet('Vandaloor', {
-    views: [{ state: 'frozen', ySplit: 1 }],
+    views: [{ state: 'frozen', ySplit: 2 }],
     properties: { tabColor: { argb: 'FF6366F1' } }, // Indigo
   });
 
   vandaloorSheet.columns = [
-    { header: 'White Team', key: 'white', width: 28 },
-    { header: 'Red Team', key: 'red', width: 28 },
-    { header: 'Blue Team', key: 'blue', width: 28 },
-    { header: 'Grey Team', key: 'grey', width: 28 },
-    { header: 'Work Location', key: 'location', width: 20 },
+    { key: 'sno', width: 8 },
+    { key: 'whiteName', width: 26 },
+    { key: 'whiteGender', width: 14 },
+    { key: 'redName', width: 26 },
+    { key: 'redGender', width: 14 },
+    { key: 'blueName', width: 26 },
+    { key: 'blueGender', width: 14 },
+    { key: 'greyName', width: 26 },
+    { key: 'greyGender', width: 14 },
+    { key: 'location', width: 18 },
   ];
 
-  const vandaloorHeaderRow = vandaloorSheet.getRow(1);
-  vandaloorHeaderRow.height = 28;
+  // Set Row 1 (Parent Headers)
+  const vR1 = vandaloorSheet.getRow(1);
+  vR1.height = 28;
+  vR1.getCell(1).value = 'S.No';
+  vR1.getCell(2).value = 'White Team';
+  vR1.getCell(4).value = 'Red Team';
+  vR1.getCell(6).value = 'Blue Team';
+  vR1.getCell(8).value = 'Grey Team';
+  vR1.getCell(10).value = 'Location';
 
-  // Header 1: White Team
-  const vH1 = vandaloorHeaderRow.getCell(1);
-  vH1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-  vH1.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FF0F172A' } };
-  vH1.alignment = { vertical: 'middle', horizontal: 'center' };
-  vH1.border = { bottom: { style: 'medium', color: { argb: 'FF94A3B8' } } };
+  // Set Row 2 (Sub-headers: Emp Name & Gender)
+  const vR2 = vandaloorSheet.getRow(2);
+  vR2.height = 24;
+  vR2.getCell(1).value = 'S.No';
+  vR2.getCell(2).value = 'Emp Name';
+  vR2.getCell(3).value = 'Gender';
+  vR2.getCell(4).value = 'Emp Name';
+  vR2.getCell(5).value = 'Gender';
+  vR2.getCell(6).value = 'Emp Name';
+  vR2.getCell(7).value = 'Gender';
+  vR2.getCell(8).value = 'Emp Name';
+  vR2.getCell(9).value = 'Gender';
+  vR2.getCell(10).value = 'Location';
 
-  // Header 2: Red Team
-  const vH2 = vandaloorHeaderRow.getCell(2);
-  vH2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDC2626' } };
-  vH2.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  vH2.alignment = { vertical: 'middle', horizontal: 'center' };
-  vH2.border = { bottom: { style: 'medium', color: { argb: 'FFB91C1C' } } };
+  // Merge header cells
+  vandaloorSheet.mergeCells('A1:A2');
+  vandaloorSheet.mergeCells('B1:C1');
+  vandaloorSheet.mergeCells('D1:E1');
+  vandaloorSheet.mergeCells('F1:G1');
+  vandaloorSheet.mergeCells('H1:I1');
+  vandaloorSheet.mergeCells('J1:J2');
 
-  // Header 3: Blue Team
-  const vH3 = vandaloorHeaderRow.getCell(3);
-  vH3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
-  vH3.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  vH3.alignment = { vertical: 'middle', horizontal: 'center' };
-  vH3.border = { bottom: { style: 'medium', color: { argb: 'FF1D4ED8' } } };
+  styleHCell(vR1.getCell(1), 'FF1E293B', 'FFFFFFFF');
+  styleHCell(vR1.getCell(2), 'FFE2E8F0', 'FF0F172A');
+  styleHCell(vR1.getCell(3), 'FFE2E8F0', 'FF0F172A');
+  styleHCell(vR1.getCell(4), 'FFDC2626', 'FFFFFFFF');
+  styleHCell(vR1.getCell(5), 'FFDC2626', 'FFFFFFFF');
+  styleHCell(vR1.getCell(6), 'FF2563EB', 'FFFFFFFF');
+  styleHCell(vR1.getCell(7), 'FF2563EB', 'FFFFFFFF');
+  styleHCell(vR1.getCell(8), 'FF475569', 'FFFFFFFF');
+  styleHCell(vR1.getCell(9), 'FF475569', 'FFFFFFFF');
+  styleHCell(vR1.getCell(10), 'FF4338CA', 'FFFFFFFF'); // Location Indigo
 
-  // Header 4: Grey Team
-  const vH4 = vandaloorHeaderRow.getCell(4);
-  vH4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF475569' } };
-  vH4.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  vH4.alignment = { vertical: 'middle', horizontal: 'center' };
-  vH4.border = { bottom: { style: 'medium', color: { argb: 'FF334155' } } };
-
-  // Header 5: Work Location
-  const vH5 = vandaloorHeaderRow.getCell(5);
-  vH5.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4338CA' } };
-  vH5.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-  vH5.alignment = { vertical: 'middle', horizontal: 'center' };
-  vH5.border = { bottom: { style: 'medium', color: { argb: 'FF3730A3' } } };
+  styleSubHCell(vR2.getCell(1), 'FF1E293B', 'FFFFFFFF');
+  styleSubHCell(vR2.getCell(2), 'FFF1F5F9', 'FF0F172A');
+  styleSubHCell(vR2.getCell(3), 'FFF1F5F9', 'FF0F172A');
+  styleSubHCell(vR2.getCell(4), 'FFFEE2E2', 'FF991B1B');
+  styleSubHCell(vR2.getCell(5), 'FFFEE2E2', 'FF991B1B');
+  styleSubHCell(vR2.getCell(6), 'FFDBEAFE', 'FF1E40AF');
+  styleSubHCell(vR2.getCell(7), 'FFDBEAFE', 'FF1E40AF');
+  styleSubHCell(vR2.getCell(8), 'FFF3F4F6', 'FF374151');
+  styleSubHCell(vR2.getCell(9), 'FFF3F4F6', 'FF374151');
+  styleSubHCell(vR2.getCell(10), 'FF4338CA', 'FFFFFFFF');
 
   const vandaloorWhite = (allocations.find((t) => t.teamName === 'White Team')?.members || []).filter(
     (e) => e.office === 'Vandaloor'
@@ -764,10 +854,15 @@ export async function generateStyledTeamsWorkbook(
 
   for (let i = 0; i < maxVandaloorRows; i++) {
     const row = vandaloorSheet.addRow({
-      white: vandaloorWhite[i]?.name || '',
-      red: vandaloorRed[i]?.name || '',
-      blue: vandaloorBlue[i]?.name || '',
-      grey: vandaloorGrey[i]?.name || '',
+      sno: i + 1,
+      whiteName: vandaloorWhite[i]?.name || '',
+      whiteGender: vandaloorWhite[i]?.gender || '',
+      redName: vandaloorRed[i]?.name || '',
+      redGender: vandaloorRed[i]?.gender || '',
+      blueName: vandaloorBlue[i]?.name || '',
+      blueGender: vandaloorBlue[i]?.gender || '',
+      greyName: vandaloorGrey[i]?.name || '',
+      greyGender: vandaloorGrey[i]?.gender || '',
       location: 'Vandaloor',
     });
     row.height = 22;
@@ -775,40 +870,71 @@ export async function generateStyledTeamsWorkbook(
     const isEven = i % 2 === 0;
     const rowBg = isEven ? 'FFFFFFFF' : 'FFF8FAFC';
 
-    // Col 1: White
+    // S.No
     const c1 = row.getCell(1);
-    c1.alignment = { vertical: 'middle', horizontal: 'left' };
+    c1.alignment = { vertical: 'middle', horizontal: 'center' };
     c1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c1.border = defaultBorder;
-    c1.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorWhite[i]?.name, color: { argb: 'FF0F172A' } };
+    c1.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF64748B' } };
 
-    // Col 2: Red
+    // White Team Name & Gender
     const c2 = row.getCell(2);
     c2.alignment = { vertical: 'middle', horizontal: 'left' };
     c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c2.border = defaultBorder;
-    c2.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorRed[i]?.name, color: { argb: 'FF991B1B' } };
+    c2.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorWhite[i]?.name, color: { argb: 'FF0F172A' } };
 
-    // Col 3: Blue
     const c3 = row.getCell(3);
-    c3.alignment = { vertical: 'middle', horizontal: 'left' };
+    c3.alignment = { vertical: 'middle', horizontal: 'center' };
     c3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c3.border = defaultBorder;
-    c3.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorBlue[i]?.name, color: { argb: 'FF1E40AF' } };
+    c3.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
 
-    // Col 4: Grey
+    // Red Team Name & Gender
     const c4 = row.getCell(4);
     c4.alignment = { vertical: 'middle', horizontal: 'left' };
     c4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c4.border = defaultBorder;
-    c4.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorGrey[i]?.name, color: { argb: 'FF334155' } };
+    c4.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorRed[i]?.name, color: { argb: 'FF991B1B' } };
 
-    // Col 5: Work Location
     const c5 = row.getCell(5);
     c5.alignment = { vertical: 'middle', horizontal: 'center' };
     c5.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
     c5.border = defaultBorder;
-    c5.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF4338CA' } };
+    c5.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+    // Blue Team Name & Gender
+    const c6 = row.getCell(6);
+    c6.alignment = { vertical: 'middle', horizontal: 'left' };
+    c6.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c6.border = defaultBorder;
+    c6.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorBlue[i]?.name, color: { argb: 'FF1E40AF' } };
+
+    const c7 = row.getCell(7);
+    c7.alignment = { vertical: 'middle', horizontal: 'center' };
+    c7.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c7.border = defaultBorder;
+    c7.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+    // Grey Team Name & Gender
+    const c8 = row.getCell(8);
+    c8.alignment = { vertical: 'middle', horizontal: 'left' };
+    c8.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c8.border = defaultBorder;
+    c8.font = { name: 'Segoe UI', size: 10, bold: !!vandaloorGrey[i]?.name, color: { argb: 'FF334155' } };
+
+    const c9 = row.getCell(9);
+    c9.alignment = { vertical: 'middle', horizontal: 'center' };
+    c9.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c9.border = defaultBorder;
+    c9.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+    // Location
+    const c10 = row.getCell(10);
+    c10.alignment = { vertical: 'middle', horizontal: 'center' };
+    c10.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c10.border = defaultBorder;
+    c10.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF4338CA' } };
   }
 
   // -------------------------------------------------------------
@@ -1014,7 +1140,7 @@ export function generateTeamsWorkbook(
     XLSX.utils.book_append_sheet(wb, teamSheet, team.teamName);
   });
 
-  // Guindy Office sheet (4 Teams Columns + Work Location)
+  // Guindy Office sheet (Parent team columns + Emp Name & Gender + Location)
   const guindyWhite = (allocations.find((t) => t.teamName === 'White Team')?.members || [])
     .filter((e) => e.office === 'Guindy');
   const guindyRed = (allocations.find((t) => t.teamName === 'Red Team')?.members || [])
@@ -1025,21 +1151,48 @@ export function generateTeamsWorkbook(
     .filter((e) => e.office === 'Guindy');
 
   const maxGuindyRows = Math.max(guindyWhite.length, guindyRed.length, guindyBlue.length, guindyGrey.length);
-  const guindyRows: Record<string, string>[] = [];
+  const guindyAoa: (string | number)[][] = [
+    ['S.No', 'White Team', '', 'Red Team', '', 'Blue Team', '', 'Grey Team', '', 'Location'],
+    ['S.No', 'Emp Name', 'Gender', 'Emp Name', 'Gender', 'Emp Name', 'Gender', 'Emp Name', 'Gender', 'Location'],
+  ];
   for (let i = 0; i < maxGuindyRows; i++) {
-    guindyRows.push({
-      'White Team': guindyWhite[i]?.name || '',
-      'Red Team': guindyRed[i]?.name || '',
-      'Blue Team': guindyBlue[i]?.name || '',
-      'Grey Team': guindyGrey[i]?.name || '',
-      'Work Location': 'Guindy',
-    });
+    guindyAoa.push([
+      i + 1,
+      guindyWhite[i]?.name || '',
+      guindyWhite[i]?.gender || '',
+      guindyRed[i]?.name || '',
+      guindyRed[i]?.gender || '',
+      guindyBlue[i]?.name || '',
+      guindyBlue[i]?.gender || '',
+      guindyGrey[i]?.name || '',
+      guindyGrey[i]?.gender || '',
+      'Guindy',
+    ]);
   }
-  const guindySheet = XLSX.utils.json_to_sheet(guindyRows);
-  guindySheet['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 18 }];
+  const guindySheet = XLSX.utils.aoa_to_sheet(guindyAoa);
+  guindySheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+    { s: { r: 0, c: 1 }, e: { r: 0, c: 2 } },
+    { s: { r: 0, c: 3 }, e: { r: 0, c: 4 } },
+    { s: { r: 0, c: 5 }, e: { r: 0, c: 6 } },
+    { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } },
+    { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } },
+  ];
+  guindySheet['!cols'] = [
+    { wch: 8 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 16 },
+  ];
   XLSX.utils.book_append_sheet(wb, guindySheet, 'Guindy');
 
-  // Vandaloor Office sheet (4 Teams Columns + Work Location)
+  // Vandaloor Office sheet (Parent team columns + Emp Name & Gender + Location)
   const vandaloorWhite = (allocations.find((t) => t.teamName === 'White Team')?.members || [])
     .filter((e) => e.office === 'Vandaloor');
   const vandaloorRed = (allocations.find((t) => t.teamName === 'Red Team')?.members || [])
@@ -1050,18 +1203,45 @@ export function generateTeamsWorkbook(
     .filter((e) => e.office === 'Vandaloor');
 
   const maxVandaloorRows = Math.max(vandaloorWhite.length, vandaloorRed.length, vandaloorBlue.length, vandaloorGrey.length);
-  const vandaloorRows: Record<string, string>[] = [];
+  const vandaloorAoa: (string | number)[][] = [
+    ['S.No', 'White Team', '', 'Red Team', '', 'Blue Team', '', 'Grey Team', '', 'Location'],
+    ['S.No', 'Emp Name', 'Gender', 'Emp Name', 'Gender', 'Emp Name', 'Gender', 'Emp Name', 'Gender', 'Location'],
+  ];
   for (let i = 0; i < maxVandaloorRows; i++) {
-    vandaloorRows.push({
-      'White Team': vandaloorWhite[i]?.name || '',
-      'Red Team': vandaloorRed[i]?.name || '',
-      'Blue Team': vandaloorBlue[i]?.name || '',
-      'Grey Team': vandaloorGrey[i]?.name || '',
-      'Work Location': 'Vandaloor',
-    });
+    vandaloorAoa.push([
+      i + 1,
+      vandaloorWhite[i]?.name || '',
+      vandaloorWhite[i]?.gender || '',
+      vandaloorRed[i]?.name || '',
+      vandaloorRed[i]?.gender || '',
+      vandaloorBlue[i]?.name || '',
+      vandaloorBlue[i]?.gender || '',
+      vandaloorGrey[i]?.name || '',
+      vandaloorGrey[i]?.gender || '',
+      'Vandaloor',
+    ]);
   }
-  const vandaloorSheet = XLSX.utils.json_to_sheet(vandaloorRows);
-  vandaloorSheet['!cols'] = [{ wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 18 }];
+  const vandaloorSheet = XLSX.utils.aoa_to_sheet(vandaloorAoa);
+  vandaloorSheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+    { s: { r: 0, c: 1 }, e: { r: 0, c: 2 } },
+    { s: { r: 0, c: 3 }, e: { r: 0, c: 4 } },
+    { s: { r: 0, c: 5 }, e: { r: 0, c: 6 } },
+    { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } },
+    { s: { r: 0, c: 9 }, e: { r: 1, c: 9 } },
+  ];
+  vandaloorSheet['!cols'] = [
+    { wch: 8 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 16 },
+  ];
   XLSX.utils.book_append_sheet(wb, vandaloorSheet, 'Vandaloor');
 
   // Summary sheet
