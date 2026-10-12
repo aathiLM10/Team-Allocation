@@ -768,14 +768,14 @@ export default function TeamsPage() {
                   onClick={handleExportExcel}
                   disabled={isExportingExcel}
                   className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shadow-2xs transition-colors cursor-pointer tracking-wide disabled:opacity-50"
-                  title="Download Master Excel containing 4 color-coded team sheets and master allocation"
+                  title="Download Master Excel containing 4 color-coded team sheets, Guindy & Vandaloor location sheets, and master allocation"
                 >
                   <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
                   <span>
                     {isExportingExcel ? 'Exporting Excel...' : 'Export Master Excel (.xlsx)'}
                   </span>
                   <span className="hidden xl:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-700/80 text-emerald-100">
-                    4 Colored Sheets
+                    Team &amp; Location Sheets
                   </span>
                 </button>
 

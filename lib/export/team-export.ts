@@ -566,7 +566,223 @@ export async function generateStyledTeamsWorkbook(
   });
 
   // -------------------------------------------------------------
-  // 3. SUMMARY MATRIX SHEET
+  // 3. GUINDY OFFICE EMPLOYEES SHEET (With Assigned Teams)
+  // -------------------------------------------------------------
+  const guindySheet = workbook.addWorksheet('Guindy', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+    properties: { tabColor: { argb: 'FF0D9488' } }, // Teal
+  });
+
+  guindySheet.columns = [
+    { header: 'S.No', key: 'sno', width: 10 },
+    { header: 'Employee Name', key: 'name', width: 34 },
+    { header: 'Gender', key: 'gender', width: 16 },
+    { header: 'Office Location', key: 'office', width: 22 },
+    { header: 'Assigned Team', key: 'team', width: 24 },
+  ];
+
+  const guindyHeaderRow = guindySheet.getRow(1);
+  guindyHeaderRow.height = 28;
+  guindyHeaderRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0F766E' }, // Deep Teal 700
+    };
+    cell.font = {
+      name: 'Segoe UI',
+      size: 11,
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+    };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = {
+      top: { style: 'medium', color: { argb: 'FF115E59' } },
+      left: { style: 'thin', color: { argb: 'FF115E59' } },
+      bottom: { style: 'medium', color: { argb: 'FF115E59' } },
+      right: { style: 'thin', color: { argb: 'FF115E59' } },
+    };
+  });
+
+  const guindyEmployeesList = masterList.filter((e) => e.office === 'Guindy');
+  guindyEmployeesList.forEach((emp, idx) => {
+    const row = guindySheet.addRow({
+      sno: idx + 1,
+      name: emp.name,
+      gender: emp.gender,
+      office: emp.office,
+      team: emp.team,
+    });
+    row.height = 22;
+
+    const isEven = idx % 2 === 0;
+    const rowBg = isEven ? 'FFFFFFFF' : 'FFF0FDFA';
+
+    // S.No
+    const c1 = row.getCell(1);
+    c1.alignment = { vertical: 'middle', horizontal: 'center' };
+    c1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c1.border = defaultBorder;
+    c1.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF64748B' } };
+
+    // Name
+    const c2 = row.getCell(2);
+    c2.alignment = { vertical: 'middle', horizontal: 'left' };
+    c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c2.border = defaultBorder;
+    c2.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+
+    // Gender
+    const c3 = row.getCell(3);
+    c3.alignment = { vertical: 'middle', horizontal: 'center' };
+    c3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c3.border = defaultBorder;
+    c3.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF334155' } };
+
+    // Office
+    const c4 = row.getCell(4);
+    c4.alignment = { vertical: 'middle', horizontal: 'center' };
+    c4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c4.border = defaultBorder;
+    c4.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF0F766E' }, bold: true };
+
+    // Assigned Team (styled with team badge color)
+    const teamTheme = TEAM_EXCEL_THEMES[emp.team] || {
+      badgeFill: 'FFF1F5F9',
+      badgeFont: 'FF0F172A',
+      headerBorder: 'FFCBD5E1',
+    };
+    const c5 = row.getCell(5);
+    c5.alignment = { vertical: 'middle', horizontal: 'center' };
+    c5.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: teamTheme.badgeFill },
+    };
+    c5.border = {
+      top: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+      left: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+      bottom: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+      right: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+    };
+    c5.font = {
+      name: 'Segoe UI',
+      size: 10,
+      bold: true,
+      color: { argb: teamTheme.badgeFont },
+    };
+  });
+
+  // -------------------------------------------------------------
+  // 4. VANDALOOR OFFICE EMPLOYEES SHEET (With Assigned Teams)
+  // -------------------------------------------------------------
+  const vandaloorSheet = workbook.addWorksheet('Vandaloor', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+    properties: { tabColor: { argb: 'FF6366F1' } }, // Indigo
+  });
+
+  vandaloorSheet.columns = [
+    { header: 'S.No', key: 'sno', width: 10 },
+    { header: 'Employee Name', key: 'name', width: 34 },
+    { header: 'Gender', key: 'gender', width: 16 },
+    { header: 'Office Location', key: 'office', width: 22 },
+    { header: 'Assigned Team', key: 'team', width: 24 },
+  ];
+
+  const vandaloorHeaderRow = vandaloorSheet.getRow(1);
+  vandaloorHeaderRow.height = 28;
+  vandaloorHeaderRow.eachCell((cell) => {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4338CA' }, // Indigo 700
+    };
+    cell.font = {
+      name: 'Segoe UI',
+      size: 11,
+      bold: true,
+      color: { argb: 'FFFFFFFF' },
+    };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = {
+      top: { style: 'medium', color: { argb: 'FF3730A3' } },
+      left: { style: 'thin', color: { argb: 'FF3730A3' } },
+      bottom: { style: 'medium', color: { argb: 'FF3730A3' } },
+      right: { style: 'thin', color: { argb: 'FF3730A3' } },
+    };
+  });
+
+  const vandaloorEmployeesList = masterList.filter((e) => e.office === 'Vandaloor');
+  vandaloorEmployeesList.forEach((emp, idx) => {
+    const row = vandaloorSheet.addRow({
+      sno: idx + 1,
+      name: emp.name,
+      gender: emp.gender,
+      office: emp.office,
+      team: emp.team,
+    });
+    row.height = 22;
+
+    const isEven = idx % 2 === 0;
+    const rowBg = isEven ? 'FFFFFFFF' : 'FFEEF2FF';
+
+    // S.No
+    const c1 = row.getCell(1);
+    c1.alignment = { vertical: 'middle', horizontal: 'center' };
+    c1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c1.border = defaultBorder;
+    c1.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF64748B' } };
+
+    // Name
+    const c2 = row.getCell(2);
+    c2.alignment = { vertical: 'middle', horizontal: 'left' };
+    c2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c2.border = defaultBorder;
+    c2.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+
+    // Gender
+    const c3 = row.getCell(3);
+    c3.alignment = { vertical: 'middle', horizontal: 'center' };
+    c3.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c3.border = defaultBorder;
+    c3.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF334155' } };
+
+    // Office
+    const c4 = row.getCell(4);
+    c4.alignment = { vertical: 'middle', horizontal: 'center' };
+    c4.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
+    c4.border = defaultBorder;
+    c4.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF4338CA' }, bold: true };
+
+    // Assigned Team (styled with team badge color)
+    const teamTheme = TEAM_EXCEL_THEMES[emp.team] || {
+      badgeFill: 'FFF1F5F9',
+      badgeFont: 'FF0F172A',
+      headerBorder: 'FFCBD5E1',
+    };
+    const c5 = row.getCell(5);
+    c5.alignment = { vertical: 'middle', horizontal: 'center' };
+    c5.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: teamTheme.badgeFill },
+    };
+    c5.border = {
+      top: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+      left: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+      bottom: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+      right: { style: 'thin', color: { argb: teamTheme.headerBorder } },
+    };
+    c5.font = {
+      name: 'Segoe UI',
+      size: 10,
+      bold: true,
+      color: { argb: teamTheme.badgeFont },
+    };
+  });
+
+  // -------------------------------------------------------------
+  // 5. SUMMARY MATRIX SHEET
   // -------------------------------------------------------------
   const summarySheet = workbook.addWorksheet('Summary Matrix', {
     views: [{ state: 'frozen', ySplit: 1 }],
@@ -767,6 +983,34 @@ export function generateTeamsWorkbook(
     teamSheet['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, teamSheet, team.teamName);
   });
+
+  // Guindy Office sheet
+  const guindyData = masterData
+    .filter((emp) => emp['Office Location'] === 'Guindy')
+    .map((m, idx) => ({
+      'S.No': idx + 1,
+      'Employee Name': m['Employee Name'],
+      'Gender': m['Gender'],
+      'Office Location': m['Office Location'],
+      'Assigned Team': m['Assigned Team'],
+    }));
+  const guindySheet = XLSX.utils.json_to_sheet(guindyData);
+  guindySheet['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 18 }, { wch: 16 }];
+  XLSX.utils.book_append_sheet(wb, guindySheet, 'Guindy');
+
+  // Vandaloor Office sheet
+  const vandaloorData = masterData
+    .filter((emp) => emp['Office Location'] === 'Vandaloor')
+    .map((m, idx) => ({
+      'S.No': idx + 1,
+      'Employee Name': m['Employee Name'],
+      'Gender': m['Gender'],
+      'Office Location': m['Office Location'],
+      'Assigned Team': m['Assigned Team'],
+    }));
+  const vandaloorSheet = XLSX.utils.json_to_sheet(vandaloorData);
+  vandaloorSheet['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 14 }, { wch: 18 }, { wch: 16 }];
+  XLSX.utils.book_append_sheet(wb, vandaloorSheet, 'Vandaloor');
 
   // Summary sheet
   const summaryRows: Record<string, string | number>[] = [

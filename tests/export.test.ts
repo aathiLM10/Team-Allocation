@@ -60,7 +60,7 @@ describe('Export Services (CSV & Excel)', () => {
     expect(csv).toContain('Allocation Validation & Integrity Checks');
   });
 
-  it('generates an Excel workbook with exactly 6 required sheets (backward compatibility)', () => {
+  it('generates an Excel workbook with 8 required sheets including Guindy and Vandaloor', () => {
     const allocations = allocateTeams(sampleEmployees, { seed: 1 });
     const report = validateAllocation(sampleEmployees, allocations);
     const summary = calculateSummary(sampleEmployees, []);
@@ -73,11 +73,13 @@ describe('Export Services (CSV & Excel)', () => {
       'Red Team',
       'Blue Team',
       'Grey Team',
+      'Guindy',
+      'Vandaloor',
       'Summary',
     ]);
   });
 
-  it('generates a styled ExcelJS workbook with 4 team sheets and colored column headers', async () => {
+  it('generates a styled ExcelJS workbook with 8 sheets including team sheets and location sheets', async () => {
     const { generateStyledTeamsWorkbook } = await import('../lib/export/team-export');
     const allocations = allocateTeams(sampleEmployees, { seed: 1 });
     const report = validateAllocation(sampleEmployees, allocations);
@@ -85,14 +87,30 @@ describe('Export Services (CSV & Excel)', () => {
 
     const wb = await generateStyledTeamsWorkbook(allocations, report, summary);
 
-    // Verify all 6 sheets are present
+    // Verify all 8 sheets are present
     const sheetNames = wb.worksheets.map((ws) => ws.name);
     expect(sheetNames).toContain('Master Allocation');
     expect(sheetNames).toContain('White Team');
     expect(sheetNames).toContain('Red Team');
     expect(sheetNames).toContain('Blue Team');
     expect(sheetNames).toContain('Grey Team');
+    expect(sheetNames).toContain('Guindy');
+    expect(sheetNames).toContain('Vandaloor');
     expect(sheetNames).toContain('Summary Matrix');
+
+    // Verify Guindy sheet contains Guindy employees with their assigned team
+    const guindySheet = wb.getWorksheet('Guindy');
+    expect(guindySheet).toBeDefined();
+    expect(guindySheet!.rowCount).toBeGreaterThanOrEqual(3); // header + at least 2 Guindy employees
+    const guindyHeader = guindySheet!.getRow(1);
+    expect(guindyHeader.getCell(5).value).toBe('Assigned Team');
+
+    // Verify Vandaloor sheet contains Vandaloor employees with their assigned team
+    const vandaloorSheet = wb.getWorksheet('Vandaloor');
+    expect(vandaloorSheet).toBeDefined();
+    expect(vandaloorSheet!.rowCount).toBeGreaterThanOrEqual(3); // header + at least 2 Vandaloor employees
+    const vandaloorHeader = vandaloorSheet!.getRow(1);
+    expect(vandaloorHeader.getCell(5).value).toBe('Assigned Team');
 
     // Verify Red Team header color
     const redSheet = wb.getWorksheet('Red Team');
