@@ -6,6 +6,7 @@ import {
   FixtureConflict,
 } from '@/types/fixture';
 import { TeamAllocation, Employee, TeamName } from '@/types/employee';
+import { Participant } from '@/types/badminton';
 
 /**
  * Generate a sequential match ID (e.g. M001, M002) that doesn't collide with existing IDs.
@@ -24,12 +25,22 @@ export function generateNextMatchId(existingFixtures: BadmintonFixture[]): strin
 
 /**
  * Validates a single draft fixture before saving or updating.
+ * Validates:
+ * - Opponents belong to different teams (Team A != Team B)
+ * - Correct player count (1 for Singles, 2 for Doubles)
+ * - All players belong to the selected team
+ * - Category registration: Singles player must be registered for Singles; Doubles players for Doubles
+ * - Office location NEVER restricts partnership or opponents (cross-office is valid)
+ * - No player occupies multiple positions in same match
+ * - Duplicate fixtures detection & rematch policy
+ * - Simultaneous scheduling conflict detection
  */
 export function validateDraftFixture(
   draft: FixtureDraft,
   existingFixtures: BadmintonFixture[],
   allocations: TeamAllocation[],
-  settings: SchedulingSettings
+  settings: SchedulingSettings,
+  participants?: Participant[]
 ): FixtureValidationReport {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -51,17 +62,28 @@ export function validateDraftFixture(
     errors.push('Team A and Team B must be different teams. Opposing sides cannot belong to the same team.');
   }
 
-  // Map allocations for quick lookup
-  const teamMembersMap = new Map<TeamName, Map<string, Employee>>();
+  // Map participants / allocations for quick lookup
+  const teamMembersMap = new Map<TeamName, Map<string, Employee | Participant>>();
   allocations.forEach((team) => {
-    const map = new Map<string, Employee>();
+    const map = new Map<string, Employee | Participant>();
     team.members.forEach((m) => map.set(m.id, m));
     teamMembersMap.set(team.teamName, map);
   });
 
+  const participantLookup = new Map<string, Participant>();
+  if (participants) {
+    participants.forEach((p) => {
+      participantLookup.set(p.id, p);
+      if (!teamMembersMap.has(p.team)) {
+        teamMembersMap.set(p.team, new Map());
+      }
+      teamMembersMap.get(p.team)!.set(p.id, p);
+    });
+  }
+
   const expectedPlayerCount = draft.category === 'Singles' ? 1 : 2;
 
-  // 3. Team A player count & validation
+  // 3. Team A player count & membership validation
   if (!draft.teamAPlayerIds || draft.teamAPlayerIds.length === 0) {
     errors.push(`Please select ${expectedPlayerCount} player${expectedPlayerCount > 1 ? 's' : ''} for Team A.`);
   } else if (draft.teamAPlayerIds.length !== expectedPlayerCount) {
@@ -69,16 +91,25 @@ export function validateDraftFixture(
       `Team A requires exactly ${expectedPlayerCount} player${expectedPlayerCount > 1 ? 's' : ''} for ${draft.category}. Currently selected: ${draft.teamAPlayerIds.length}.`
     );
   } else {
-    // Check membership
     const teamAMembers = draft.teamA ? teamMembersMap.get(draft.teamA) : null;
     draft.teamAPlayerIds.forEach((id) => {
       if (teamAMembers && !teamAMembers.has(id)) {
         errors.push(`Selected player does not belong to ${draft.teamA}.`);
       }
+      // Check category registration if participant record exists
+      const p = participantLookup.get(id);
+      if (p) {
+        if (draft.category === 'Singles' && !p.singlesRegistered) {
+          errors.push(`Player "${p.name}" (${p.id}) is not registered for Singles.`);
+        }
+        if (draft.category === 'Doubles' && !p.doublesRegistered) {
+          errors.push(`Player "${p.name}" (${p.id}) is not registered for Doubles.`);
+        }
+      }
     });
   }
 
-  // 4. Team B player count & validation
+  // 4. Team B player count & membership validation
   if (!draft.teamBPlayerIds || draft.teamBPlayerIds.length === 0) {
     errors.push(`Please select ${expectedPlayerCount} player${expectedPlayerCount > 1 ? 's' : ''} for Team B.`);
   } else if (draft.teamBPlayerIds.length !== expectedPlayerCount) {
@@ -86,11 +117,20 @@ export function validateDraftFixture(
       `Team B requires exactly ${expectedPlayerCount} player${expectedPlayerCount > 1 ? 's' : ''} for ${draft.category}. Currently selected: ${draft.teamBPlayerIds.length}.`
     );
   } else {
-    // Check membership
     const teamBMembers = draft.teamB ? teamMembersMap.get(draft.teamB) : null;
     draft.teamBPlayerIds.forEach((id) => {
       if (teamBMembers && !teamBMembers.has(id)) {
         errors.push(`Selected player does not belong to ${draft.teamB}.`);
+      }
+      // Check category registration if participant record exists
+      const p = participantLookup.get(id);
+      if (p) {
+        if (draft.category === 'Singles' && !p.singlesRegistered) {
+          errors.push(`Player "${p.name}" (${p.id}) is not registered for Singles.`);
+        }
+        if (draft.category === 'Doubles' && !p.doublesRegistered) {
+          errors.push(`Player "${p.name}" (${p.id}) is not registered for Doubles.`);
+        }
       }
     });
   }
@@ -195,6 +235,8 @@ export function validateDraftFixture(
         if (sharedPlayers.length > 0) {
           const names = sharedPlayers
             .map((id) => {
+              const p = participantLookup.get(id);
+              if (p) return p.name;
               for (const team of allocations) {
                 const found = team.members.find((m) => m.id === id);
                 if (found) return found.name;
@@ -359,16 +401,29 @@ export function detectAllFixtureConflicts(
 }
 
 /**
- * Intelligent helper to auto-suggest pairs for a team in Doubles.
- * Evaluates team members and suggests two available players that have not been paired frequently.
+ * Auto-suggest pairs for a team in Doubles.
+ * Evaluates team members and suggests two available players with Doubles registration.
+ * Office location is NEVER used to restrict pairing (cross-office pairing is fully supported).
  */
 export function suggestDoublesPartners(
   teamName: TeamName,
   allocations: TeamAllocation[],
-  existingFixtures: BadmintonFixture[]
-): [Employee, Employee] | null {
-  const team = allocations.find((t) => t.teamName === teamName);
-  if (!team || team.members.length < 2) return null;
+  existingFixtures: BadmintonFixture[],
+  participants?: Participant[]
+): [Employee | Participant, Employee | Participant] | null {
+  // If participants provided, filter by doublesRegistered
+  let candidateMembers: (Employee | Participant)[] = [];
+
+  if (participants && participants.length > 0) {
+    candidateMembers = participants.filter((p) => p.team === teamName && p.doublesRegistered);
+  } else {
+    const team = allocations.find((t) => t.teamName === teamName);
+    if (team) {
+      candidateMembers = [...team.members];
+    }
+  }
+
+  if (candidateMembers.length < 2) return null;
 
   // Track how many times each pair has been formed in doubles
   const pairCounts = new Map<string, number>();
@@ -388,7 +443,7 @@ export function suggestDoublesPartners(
 
   // Track individual participation count
   const playerMatchCounts = new Map<string, number>();
-  team.members.forEach((m) => playerMatchCounts.set(m.id, 0));
+  candidateMembers.forEach((m) => playerMatchCounts.set(m.id, 0));
 
   existingFixtures.forEach((f) => {
     f.teamAPlayers.forEach((p) => {
@@ -403,24 +458,22 @@ export function suggestDoublesPartners(
     });
   });
 
-  // Find candidate pair with lowest pair count and balanced player participation
-  let bestPair: [Employee, Employee] | null = null;
+  let bestPair: [Employee | Participant, Employee | Participant] | null = null;
   let lowestScore = Infinity;
 
-  const members = [...team.members].sort(
+  const sorted = [...candidateMembers].sort(
     (a, b) => (playerMatchCounts.get(a.id) || 0) - (playerMatchCounts.get(b.id) || 0)
   );
 
-  for (let i = 0; i < members.length; i++) {
-    for (let j = i + 1; j < members.length; j++) {
-      const p1 = members[i];
-      const p2 = members[j];
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const p1 = sorted[i];
+      const p2 = sorted[j];
       const pairKey = getPairKey(p1.id, p2.id);
       const pairCount = pairCounts.get(pairKey) || 0;
       const count1 = playerMatchCounts.get(p1.id) || 0;
       const count2 = playerMatchCounts.get(p2.id) || 0;
 
-      // Score: heavily penalize repeated pairing, favor players with fewer matches
       const score = pairCount * 100 + count1 + count2;
 
       if (score < lowestScore) {

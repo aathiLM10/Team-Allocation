@@ -93,6 +93,19 @@ export function FixtureList({
     });
   }, [fixtures, categoryTab, statusFilter, teamFilter, courtFilter, searchTerm]);
 
+  // Group filtered fixtures by round
+  const fixturesByRound = useMemo(() => {
+    const map = new Map<string, BadmintonFixture[]>();
+    filteredFixtures.forEach((f) => {
+      const r = f.round || 'Round 1';
+      if (!map.has(r)) {
+        map.set(r, []);
+      }
+      map.get(r)!.push(f);
+    });
+    return Array.from(map.entries());
+  }, [filteredFixtures]);
+
   // Extract unique courts for filter
   const availableCourts = useMemo(() => {
     const set = new Set<string>();
@@ -264,176 +277,189 @@ export function FixtureList({
 
       {/* CARD VIEW */}
       {filteredFixtures.length > 0 && viewMode === 'cards' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredFixtures.map((fixture) => {
-            const conflicts = conflictMap.get(fixture.id) || [];
-            const hasConflict = conflicts.length > 0;
-            const colorA = teamColors[fixture.teamA] || teamColors['White Team'];
-            const colorB = teamColors[fixture.teamB] || teamColors['Red Team'];
+        <div className="space-y-6">
+          {fixturesByRound.map(([roundName, roundFixtures]) => (
+            <div key={roundName} className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">{roundName}</h4>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {roundFixtures.length} {roundFixtures.length === 1 ? 'match' : 'matches'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {roundFixtures.map((fixture) => {
+                  const conflicts = conflictMap.get(fixture.id) || [];
+                  const hasConflict = conflicts.length > 0;
+                  const colorA = teamColors[fixture.teamA] || teamColors['White Team'];
+                  const colorB = teamColors[fixture.teamB] || teamColors['Red Team'];
 
-            return (
-              <div
-                key={fixture.id}
-                className={`bg-white rounded-xl border transition-all duration-200 shadow-2xs overflow-hidden flex flex-col justify-between ${
-                  hasConflict ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200/90 hover:border-slate-300 hover:shadow-xs'
-                }`}
-              >
-                {/* Card Header */}
-                <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
-                      {fixture.id}
-                    </span>
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        fixture.category === 'Singles'
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
-                          : 'bg-purple-50 text-purple-700 border-purple-200'
+                  return (
+                    <div
+                      key={fixture.id}
+                      className={`bg-white rounded-xl border transition-all duration-200 shadow-2xs overflow-hidden flex flex-col justify-between ${
+                        hasConflict ? 'border-amber-300 ring-1 ring-amber-200/60' : 'border-slate-200/90 hover:border-slate-300 hover:shadow-xs'
                       }`}
                     >
-                      {fixture.category === 'Singles' ? (
-                        <User className="w-2.5 h-2.5" />
-                      ) : (
-                        <Users className="w-2.5 h-2.5" />
+                      {/* Card Header */}
+                      <div className="px-4 py-3 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                            {fixture.id}
+                          </span>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              fixture.category === 'Singles'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-purple-50 text-purple-700 border-purple-200'
+                            }`}
+                          >
+                            {fixture.category === 'Singles' ? (
+                              <User className="w-2.5 h-2.5" />
+                            ) : (
+                              <Users className="w-2.5 h-2.5" />
+                            )}
+                            {fixture.category}
+                          </span>
+                          <span className="text-slate-500 font-medium text-[11px]">
+                            {fixture.round}
+                          </span>
+                        </div>
+
+                        {/* Status Dropdown */}
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={fixture.status}
+                            onChange={(e) => onUpdateStatus(fixture.id, e.target.value as MatchStatus)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold border cursor-pointer focus:outline-hidden ${getStatusBadge(
+                              fixture.status
+                            )}`}
+                          >
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Conflict Alert Banner if any */}
+                      {hasConflict && (
+                        <div className="px-4 py-2 bg-amber-50/90 border-b border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            {conflicts.map((c, idx) => (
+                              <div key={idx} className="font-medium">
+                                {c.message}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
-                      {fixture.category}
-                    </span>
-                    <span className="text-slate-500 font-medium text-[11px]">
-                      {fixture.round}
-                    </span>
-                  </div>
 
-                  {/* Status Dropdown */}
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      value={fixture.status}
-                      onChange={(e) => onUpdateStatus(fixture.id, e.target.value as MatchStatus)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold border cursor-pointer focus:outline-hidden ${getStatusBadge(
-                        fixture.status
-                      )}`}
-                    >
-                      <option value="Scheduled">Scheduled</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Conflict Alert Banner if any */}
-                {hasConflict && (
-                  <div className="px-4 py-2 bg-amber-50/90 border-b border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="space-y-0.5">
-                      {conflicts.map((c, idx) => (
-                        <div key={idx} className="font-medium">
-                          {c.message}
+                      {/* Matchup Layout: Team A vs Team B */}
+                      <div className="p-4 grid grid-cols-11 gap-2 items-center">
+                        {/* Side A */}
+                        <div className={`col-span-5 p-3 rounded-xl border ${colorA.border} ${colorA.bg} space-y-2`}>
+                          <div className="flex items-center justify-between">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${colorA.badge}`}>
+                              {fixture.teamA}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            {fixture.teamAPlayers.map((p, idx) => (
+                              <div key={p.id} className="flex items-center justify-between text-xs">
+                                <span className="font-bold text-slate-900 truncate">
+                                  {idx + 1}. {p.name}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  {p.gender[0]} • {p.office[0]}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* Matchup Layout: Team A vs Team B */}
-                <div className="p-4 grid grid-cols-11 gap-2 items-center">
-                  {/* Side A */}
-                  <div className={`col-span-5 p-3 rounded-xl border ${colorA.border} ${colorA.bg} space-y-2`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${colorA.badge}`}>
-                        {fixture.teamA}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {fixture.teamAPlayers.map((p, idx) => (
-                        <div key={p.id} className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-900 truncate">
-                            {idx + 1}. {p.name}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            {p.gender[0]} • {p.office[0]}
-                          </span>
+                        {/* VS Indicator */}
+                        <div className="col-span-1 flex flex-col items-center justify-center">
+                          <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-black text-[10px] text-slate-600 shadow-2xs">
+                            VS
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* VS Indicator */}
-                  <div className="col-span-1 flex flex-col items-center justify-center">
-                    <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-black text-[10px] text-slate-600 shadow-2xs">
-                      VS
-                    </div>
-                  </div>
+                        {/* Side B */}
+                        <div className={`col-span-5 p-3 rounded-xl border ${colorB.border} ${colorB.bg} space-y-2`}>
+                          <div className="flex items-center justify-between">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${colorB.badge}`}>
+                              {fixture.teamB}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            {fixture.teamBPlayers.map((p, idx) => (
+                              <div key={p.id} className="flex items-center justify-between text-xs">
+                                <span className="font-bold text-slate-900 truncate">
+                                  {idx + 1}. {p.name}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  {p.gender[0]} • {p.office[0]}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Side B */}
-                  <div className={`col-span-5 p-3 rounded-xl border ${colorB.border} ${colorB.bg} space-y-2`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${colorB.badge}`}>
-                        {fixture.teamB}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {fixture.teamBPlayers.map((p, idx) => (
-                        <div key={p.id} className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-900 truncate">
-                            {idx + 1}. {p.name}
+                      {/* Card Footer: Scheduling Details & Actions */}
+                      <div className="px-4 py-2.5 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <div className="flex items-center gap-3 text-[11px] flex-wrap">
+                          <span className="flex items-center gap-1 font-semibold text-slate-700">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            {fixture.court}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            {p.gender[0]} • {p.office[0]}
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-slate-400" />
+                            {fixture.scheduledDate}
+                          </span>
+                          <span className="flex items-center gap-1 font-mono font-medium text-slate-700">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            {fixture.scheduledTime}
                           </span>
                         </div>
-                      ))}
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onDuplicateFixture(fixture)}
+                            title="Duplicate as new draft fixture"
+                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEditFixture(fixture)}
+                            title="Edit fixture details"
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteFixture(fixture.id)}
+                            title="Delete fixture"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Card Footer: Scheduling Details & Actions */}
-                <div className="px-4 py-2.5 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <div className="flex items-center gap-3 text-[11px] flex-wrap">
-                    <span className="flex items-center gap-1 font-semibold text-slate-700">
-                      <MapPin className="w-3 h-3 text-slate-400" />
-                      {fixture.court}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-slate-400" />
-                      {fixture.scheduledDate}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono font-medium text-slate-700">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      {fixture.scheduledTime}
-                    </span>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onDuplicateFixture(fixture)}
-                      title="Duplicate as new draft fixture"
-                      className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded-md transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onEditFixture(fixture)}
-                      title="Edit fixture details"
-                      className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteFixture(fixture.id)}
-                      title="Delete fixture"
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
@@ -458,7 +484,20 @@ export function FixtureList({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredFixtures.map((fixture) => {
+              {fixturesByRound.map(([roundName, roundFixtures]) => (
+                <React.Fragment key={roundName}>
+                  <tr className="bg-slate-100/90 font-extrabold text-slate-800 text-[11px]">
+                    <td colSpan={12} className="py-2 px-3">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{roundName}</span>
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          ({roundFixtures.length} matches)
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {roundFixtures.map((fixture) => {
                 const conflicts = conflictMap.get(fixture.id) || [];
                 const hasConflict = conflicts.length > 0;
 
@@ -547,7 +586,9 @@ export function FixtureList({
                   </tr>
                 );
               })}
-            </tbody>
+            </React.Fragment>
+          ))}
+        </tbody>
           </table>
         </div>
       )}

@@ -36,6 +36,7 @@ import { ValidationSummary } from '@/components/teams/validation-summary';
 import { AllocationDiffModal } from '@/components/teams/allocation-diff-modal';
 import { GenerationModal } from '@/components/ui/generation-modal';
 import { BadmintonDashboard } from '@/components/fixtures/badminton-dashboard';
+import { AppHeader } from '@/components/navigation/app-header';
 
 import {
   Shuffle,
@@ -416,90 +417,11 @@ export default function TeamsPage() {
       />
 
       {/* Top Enterprise Application Header */}
-      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            {/* Distinctive Solidpro Logo Mark */}
-            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-center font-bold shadow-xs border border-slate-800">
-              <Layers className="w-5 h-5 text-blue-300" />
-              {/* 4 Team Color Pips */}
-              <div className="absolute -top-1 -right-1 flex gap-0.5 p-0.5 rounded-full bg-white/90 shadow-2xs border border-slate-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" title="White" />
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="Red" />
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-600" title="Blue" />
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-600" title="Grey" />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold text-slate-950 tracking-tight leading-tight flex items-center gap-2">
-                  <span>Solidpro</span>
-                  <span className="hidden md:inline text-xs font-semibold text-slate-400">/</span>
-                  <span className="hidden md:inline text-xs font-semibold text-slate-600">Allocation Suite</span>
-                </h1>
-                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
-                  v2.0 • 3D Studio
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 font-medium">
-                Guindy &amp; Vandaloor Offices • White, Red, Blue &amp; Grey Balanced Rosters
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Studio Navigation Switcher */}
-            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setActiveStudioView('teams')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeStudioView === 'teams'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-blue-600" />
-                <span className="hidden sm:inline">Team Studio</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveStudioView('badminton')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeStudioView === 'badminton'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span className="text-xs">🏸</span>
-                <span className="hidden sm:inline">Badminton Fixtures</span>
-              </button>
-            </div>
-
-            {employees.length > 0 && (
-              <button
-                type="button"
-                onClick={handleReset}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-md transition-colors cursor-pointer"
-                title="Reset application to upload new file"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Start Over</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowAlgorithmDocs(!showAlgorithmDocs)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors cursor-pointer border border-blue-200/80"
-            >
-              <Info className="w-3.5 h-3.5 text-blue-600" />
-              <span className="hidden lg:inline">Algorithm Specs</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        onReset={handleReset}
+        onOpenSpecs={() => setShowAlgorithmDocs(!showAlgorithmDocs)}
+        hasData={employees.length > 0}
+      />
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
