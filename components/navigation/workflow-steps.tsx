@@ -1,15 +1,16 @@
 'use client';
 
 import React from 'react';
-import { UploadCloud, CheckCircle2, AlertOctagon, Sparkles, FileText, Check, ArrowRight } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertOctagon, Sparkles, FileText, Check, Trophy } from 'lucide-react';
 
-export type WorkflowStepId = 1 | 2 | 3 | 4;
+export type WorkflowStepId = 1 | 2 | 3 | 4 | 5;
 
 interface WorkflowStepsProps {
   currentStep: WorkflowStepId;
   hasFileUploaded: boolean;
   hasErrors: boolean;
   hasAllocated: boolean;
+  hasFixtures?: boolean;
   onStepClick?: (step: WorkflowStepId) => void;
 }
 
@@ -18,6 +19,7 @@ export function WorkflowSteps({
   hasFileUploaded,
   hasErrors,
   hasAllocated,
+  hasFixtures = false,
   onStepClick,
 }: WorkflowStepsProps) {
   const steps = [
@@ -58,16 +60,25 @@ export function WorkflowSteps({
       isCurrent: currentStep === 4,
       isBlocked: !hasAllocated,
     },
+    {
+      id: 5 as WorkflowStepId,
+      name: 'Badminton Fixtures',
+      subtitle: 'Singles & Doubles Matchups',
+      icon: Trophy,
+      isCompleted: hasFixtures,
+      isCurrent: currentStep === 5,
+      isBlocked: false, // Organizer can enter fixtures anytime
+    },
   ];
 
   return (
     <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-[0_4px_20px_rgba(15,23,42,0.03)] p-3 sm:p-4 transition-all">
       <nav aria-label="Workflow Steps">
-        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 relative">
+        <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 relative">
           {steps.map((step, idx) => {
             const Icon = step.icon;
             const canNavigate =
-              !step.isBlocked && onStepClick && (step.isCompleted || step.isCurrent);
+              !step.isBlocked && onStepClick && (step.isCompleted || step.isCurrent || step.id === 5);
 
             return (
               <li

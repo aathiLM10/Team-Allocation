@@ -35,6 +35,7 @@ import { TeamSummary } from '@/components/teams/team-summary';
 import { ValidationSummary } from '@/components/teams/validation-summary';
 import { AllocationDiffModal } from '@/components/teams/allocation-diff-modal';
 import { GenerationModal } from '@/components/ui/generation-modal';
+import { BadmintonDashboard } from '@/components/fixtures/badminton-dashboard';
 
 import {
   Shuffle,
@@ -43,6 +44,7 @@ import {
   Unlock,
   Sparkles,
   AlertTriangle,
+  Trophy,
   Info,
   HelpCircle,
   RotateCcw,
@@ -91,6 +93,9 @@ export default function TeamsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
+  // Studio View: Teams Allocation Studio vs Badminton Fixtures Studio
+  const [activeStudioView, setActiveStudioView] = useState<'teams' | 'badminton'>('teams');
+
   // Settings
   const [customSeed, setCustomSeed] = useState<string>('');
   const [showSeedInput, setShowSeedInput] = useState(false);
@@ -111,12 +116,13 @@ export default function TeamsPage() {
 
   // Current workflow step calculation
   const currentStep: WorkflowStepId = useMemo(() => {
+    if (activeStudioView === 'badminton') return 5;
     if (employees.length === 0) return 1;
     if (!allocations) {
       return summary.hasErrors ? 2 : 3;
     }
     return 4;
-  }, [employees.length, allocations, summary.hasErrors]);
+  }, [activeStudioView, employees.length, allocations, summary.hasErrors]);
 
   // Handle data parsed from file upload
   const handleDataParsed = (
@@ -443,6 +449,34 @@ export default function TeamsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Studio Navigation Switcher */}
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveStudioView('teams')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeStudioView === 'teams'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden sm:inline">Team Studio</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveStudioView('badminton')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeStudioView === 'badminton'
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className="text-xs">🏸</span>
+                <span className="hidden sm:inline">Badminton Fixtures</span>
+              </button>
+            </div>
+
             {employees.length > 0 && (
               <button
                 type="button"
@@ -451,7 +485,7 @@ export default function TeamsPage() {
                 title="Reset application to upload new file"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Start Over</span>
+                <span className="hidden md:inline">Start Over</span>
               </button>
             )}
 
@@ -461,7 +495,7 @@ export default function TeamsPage() {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors cursor-pointer border border-blue-200/80"
             >
               <Info className="w-3.5 h-3.5 text-blue-600" />
-              <span>Algorithm Specs</span>
+              <span className="hidden lg:inline">Algorithm Specs</span>
             </button>
           </div>
         </div>
@@ -475,6 +509,13 @@ export default function TeamsPage() {
           hasFileUploaded={employees.length > 0}
           hasErrors={summary.hasErrors}
           hasAllocated={!!allocations}
+          onStepClick={(step) => {
+            if (step === 5) {
+              setActiveStudioView('badminton');
+            } else {
+              setActiveStudioView('teams');
+            }
+          }}
         />
 
         {/* Algorithm Specifications Modal / Accordion */}
@@ -543,23 +584,32 @@ export default function TeamsPage() {
           </div>
         )}
 
-        {/* STEP 1: File Upload */}
-        <EmployeeUpload
-          onDataParsed={handleDataParsed}
-          onReset={handleReset}
-          activeFileName={activeFileName}
-        />
-
-        {/* GENERALIZED ADD / EDIT EMPLOYEE SECTION */}
-        <div ref={formRef}>
-          <ManualEmployeeForm
-            onAddEmployee={handleAddManualEmployee}
-            onSaveEmployee={handleSaveManualEmployee}
-            editingEmployee={editingEmployee}
-            onCancelEdit={handleCancelEdit}
-            isOpenDefault={employees.length === 0}
+        {/* Main Content Area */}
+        {activeStudioView === 'badminton' ? (
+          <BadmintonDashboard
+            allocations={allocations}
+            employees={employees}
+            onNavigateToTeams={() => setActiveStudioView('teams')}
           />
-        </div>
+        ) : (
+          <>
+            {/* STEP 1: File Upload */}
+            <EmployeeUpload
+              onDataParsed={handleDataParsed}
+              onReset={handleReset}
+              activeFileName={activeFileName}
+            />
+
+            {/* GENERALIZED ADD / EDIT EMPLOYEE SECTION */}
+            <div ref={formRef}>
+              <ManualEmployeeForm
+                onAddEmployee={handleAddManualEmployee}
+                onSaveEmployee={handleSaveManualEmployee}
+                editingEmployee={editingEmployee}
+                onCancelEdit={handleCancelEdit}
+                isOpenDefault={employees.length === 0}
+              />
+            </div>
 
         {/* STEP 2: Column Mapping & Data Preview (When data exists) */}
         {employees.length > 0 && (
@@ -789,6 +839,20 @@ export default function TeamsPage() {
                   <Download className="w-3.5 h-3.5 text-blue-600" />
                   <span>Master CSV</span>
                 </button>
+
+                {/* Badminton Fixtures Switcher Button */}
+                <button
+                  type="button"
+                  onClick={() => setActiveStudioView('badminton')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 rounded-md shadow-2xs transition-colors cursor-pointer"
+                  title="Configure Singles & Doubles badminton matches for these teams"
+                >
+                  <Trophy className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Badminton Fixtures</span>
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-200/80 text-purple-800">
+                    Step 5
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -815,6 +879,8 @@ export default function TeamsPage() {
             {/* Audit & Verification Report */}
             <ValidationSummary report={currentValidationReport} />
           </div>
+        )}
+          </>
         )}
 
         {/* Reshuffle Movement Log Modal */}
