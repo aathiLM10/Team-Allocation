@@ -16,6 +16,10 @@ import {
   generateChampionSummaryCSV,
   generateMasterKnockoutWorkbook,
 } from '@/lib/export/knockout-export';
+import {
+  generateKnockoutFixtureListPDF,
+  generateCombinedKnockoutFixtureListPDF,
+} from '@/lib/export/pdf-fixture-export';
 import { SAMPLE_PARTICIPANTS } from '@/lib/badminton/sample-data';
 import { DEFAULT_SCHEDULING_SETTINGS } from '@/types/fixture';
 import { Participant } from '@/types/badminton';
@@ -375,6 +379,100 @@ describe('Knockout Tournament Generator System', () => {
       expect(sheetNames).toContain('Doubles Partner Pairs');
       expect(sheetNames).toContain('Match Results');
       expect(sheetNames).toContain('Tournament Summary');
+    });
+  });
+
+  // 7. Printable PDF Fixture List Export Tests
+  describe('Printable PDF Fixture List Export', () => {
+    it('generates an official printable PDF for Singles knockout bracket', () => {
+      const fourParticipants = SAMPLE_PARTICIPANTS.filter((p) => p.singlesRegistered).slice(0, 4);
+      const bracket = createKnockoutBracket(
+        'Singles',
+        fourParticipants,
+        [],
+        { category: 'Singles' },
+        DEFAULT_SCHEDULING_SETTINGS
+      );
+
+      const doc = generateKnockoutFixtureListPDF(bracket, {
+        tournamentTitle: 'ANNUAL BADMINTON TOURNAMENT',
+        organizerName: 'Sports Committee',
+        tournamentDate: '2026-10-20',
+      });
+
+      expect(doc).toBeDefined();
+      expect(doc.internal.pages.length).toBeGreaterThanOrEqual(2); // jsPDF pages are 1-indexed (index 0 is null/meta)
+    });
+
+    it('generates an official printable PDF for Doubles knockout bracket with pairs', () => {
+      const pairs = generateDoublesPairs(SAMPLE_PARTICIPANTS, []);
+      const bracket = createKnockoutBracket(
+        'Doubles',
+        SAMPLE_PARTICIPANTS,
+        pairs,
+        { category: 'Doubles' },
+        DEFAULT_SCHEDULING_SETTINGS
+      );
+
+      const doc = generateKnockoutFixtureListPDF(bracket, {
+        tournamentTitle: 'CORPORATE BADMINTON CUP',
+        orientation: 'landscape',
+      });
+
+      expect(doc).toBeDefined();
+      expect(doc.internal.pages.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('reflects match results and advances champions in the PDF output', () => {
+      const fourParticipants = SAMPLE_PARTICIPANTS.filter((p) => p.singlesRegistered).slice(0, 4);
+      let bracket = createKnockoutBracket(
+        'Singles',
+        fourParticipants,
+        [],
+        { category: 'Singles' },
+        DEFAULT_SCHEDULING_SETTINGS
+      );
+
+      // Play SF1
+      bracket = recordMatchResult(bracket, 'SF1', 'sideA', '21-17, 21-15');
+      // Play SF2
+      bracket = recordMatchResult(bracket, 'SF2', 'sideB', '21-19, 21-18');
+      // Play Final
+      bracket = recordMatchResult(bracket, 'FINAL', 'sideA', '21-14, 21-16');
+
+      expect(bracket.champion).toBeDefined();
+
+      const doc = generateKnockoutFixtureListPDF(bracket);
+      expect(doc).toBeDefined();
+    });
+
+    it('generates a multi-category combined tournament PDF fixture list', () => {
+      const fourParticipants = SAMPLE_PARTICIPANTS.filter((p) => p.singlesRegistered).slice(0, 4);
+      const pairs = generateDoublesPairs(SAMPLE_PARTICIPANTS, []);
+
+      const singlesBracket = createKnockoutBracket(
+        'Singles',
+        fourParticipants,
+        [],
+        { category: 'Singles' },
+        DEFAULT_SCHEDULING_SETTINGS
+      );
+      const doublesBracket = createKnockoutBracket(
+        'Doubles',
+        SAMPLE_PARTICIPANTS,
+        pairs,
+        { category: 'Doubles' },
+        DEFAULT_SCHEDULING_SETTINGS
+      );
+
+      const doc = generateCombinedKnockoutFixtureListPDF(singlesBracket, doublesBracket, {
+        tournamentTitle: 'GRAND BADMINTON FINALS',
+        organizerName: 'Enterprise Sports Club',
+      });
+
+      expect(doc).toBeDefined();
+      // Combined document has multiple pages
+      expect(doc.internal.pages.length).toBeGreaterThanOrEqual(2);
     });
   });
 });

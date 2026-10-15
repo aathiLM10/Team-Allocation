@@ -27,6 +27,12 @@ import {
 } from '@/lib/export/knockout-export';
 import { downloadCSV } from '@/lib/export/team-export';
 import {
+  downloadKnockoutFixtureListPDF,
+  downloadCombinedKnockoutFixtureListPDF,
+  printKnockoutFixtureList,
+  printCombinedKnockoutFixtureList,
+} from '@/lib/export/pdf-fixture-export';
+import {
   Trophy,
   Sparkles,
   Shuffle,
@@ -48,6 +54,8 @@ import {
   Layers,
   Edit2,
   Check,
+  Printer,
+  FileDown,
 } from 'lucide-react';
 
 interface KnockoutBracketViewProps {
@@ -394,6 +402,40 @@ export function KnockoutBracketView({
               </button>
             )}
 
+            {/* Direct Download PDF Button (First-Class Export) */}
+            {bracket && (
+              <button
+                type="button"
+                onClick={() => {
+                  downloadKnockoutFixtureListPDF(bracket, {
+                    tournamentDate: settings.defaultDate,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                title="Download clean printable A4 PDF fixture list for notice board"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span>Download Fixture List (PDF)</span>
+              </button>
+            )}
+
+            {/* Direct Print Button (First-Class Export) */}
+            {bracket && (
+              <button
+                type="button"
+                onClick={() => {
+                  printKnockoutFixtureList(bracket, {
+                    tournamentDate: settings.defaultDate,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                title="Print clean fixture list for notice board"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>Print Fixture List</span>
+              </button>
+            )}
+
             {/* Export Dropdown */}
             <div className="relative">
               <button
@@ -406,103 +448,178 @@ export function KnockoutBracketView({
               </button>
 
               {showExportMenu && (
-                <div className="absolute right-0 mt-1.5 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs animate-in fade-in zoom-in-95 duration-100 text-slate-800">
-                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Excel Workbook (.xlsx)
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      downloadMasterKnockoutExcel(
-                        category === 'Singles' ? bracket : otherCategoryBracket,
-                        category === 'Doubles' ? bracket : otherCategoryBracket,
-                        participants,
-                        doublesPairs
-                      );
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-emerald-50 hover:text-emerald-900 font-semibold flex items-center justify-between cursor-pointer"
-                  >
-                    <span className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                      Master Excel (7 Sheets)
-                    </span>
-                  </button>
+                <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs animate-in fade-in zoom-in-95 duration-100 text-slate-800 divide-y divide-slate-100">
+                  {/* PDF & Notice Board */}
+                  <div className="py-1">
+                    <div className="px-3 py-1 text-[10px] font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1">
+                      <FileDown className="w-3 h-3" />
+                      Notice Board &amp; PDF
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (bracket) {
+                          downloadKnockoutFixtureListPDF(bracket, {
+                            tournamentDate: settings.defaultDate,
+                          });
+                        }
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-rose-50 hover:text-rose-900 font-semibold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-rose-600" />
+                      Download {category} Fixtures (PDF)
+                    </button>
 
-                  <div className="my-1 border-t border-slate-100" />
-                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    CSV Exports
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (bracket) {
-                        downloadCSV(
-                          generateKnockoutBracketCSV(bracket),
-                          `badminton_${category.toLowerCase()}_knockout.csv`
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadCombinedKnockoutFixtureListPDF(
+                          category === 'Singles' ? bracket : otherCategoryBracket,
+                          category === 'Doubles' ? bracket : otherCategoryBracket,
+                          { tournamentDate: settings.defaultDate }
                         );
-                      }
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 text-blue-500" />
-                    {category} Knockout CSV
-                  </button>
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-rose-50 hover:text-rose-900 font-semibold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Layers className="w-3.5 h-3.5 text-rose-600" />
+                      Download Combined Tournament (PDF)
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      downloadCSV(
-                        generateCompleteKnockoutCSV(
-                          category === 'Singles' ? bracket : otherCategoryBracket,
-                          category === 'Doubles' ? bracket : otherCategoryBracket
-                        ),
-                        'badminton_complete_bracket.csv'
-                      );
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 text-purple-500" />
-                    Complete Bracket CSV
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (bracket) {
+                          printKnockoutFixtureList(bracket, {
+                            tournamentDate: settings.defaultDate,
+                          });
+                        }
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-slate-600" />
+                      Print {category} Fixture List
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      downloadCSV(
-                        generateMatchResultsCSV(
+                    <button
+                      type="button"
+                      onClick={() => {
+                        printCombinedKnockoutFixtureList(
                           category === 'Singles' ? bracket : otherCategoryBracket,
-                          category === 'Doubles' ? bracket : otherCategoryBracket
-                        ),
-                        'badminton_match_results.csv'
-                      );
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 text-indigo-500" />
-                    Match Results CSV
-                  </button>
+                          category === 'Doubles' ? bracket : otherCategoryBracket,
+                          { tournamentDate: settings.defaultDate }
+                        );
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                      Print Complete Tournament
+                    </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      downloadCSV(
-                        generateChampionSummaryCSV(
+                  {/* Excel Workbook */}
+                  <div className="py-1">
+                    <div className="px-3 py-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+                      <FileSpreadsheet className="w-3 h-3" />
+                      Excel Workbook (.xlsx)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadMasterKnockoutExcel(
                           category === 'Singles' ? bracket : otherCategoryBracket,
-                          category === 'Doubles' ? bracket : otherCategoryBracket
-                        ),
-                        'badminton_champion_summary.csv'
-                      );
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    Champion Summary CSV
-                  </button>
+                          category === 'Doubles' ? bracket : otherCategoryBracket,
+                          participants,
+                          doublesPairs
+                        );
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-emerald-50 hover:text-emerald-900 font-semibold flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-600" />
+                      Export Fixture List (Excel)
+                    </button>
+                  </div>
+
+                  {/* CSV Exports */}
+                  <div className="py-1">
+                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      CSV Exports
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (bracket) {
+                          downloadCSV(
+                            generateKnockoutBracketCSV(bracket),
+                            `badminton_${category.toLowerCase()}_knockout.csv`
+                          );
+                        }
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-blue-500" />
+                      Export Fixture List (CSV)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadCSV(
+                          generateCompleteKnockoutCSV(
+                            category === 'Singles' ? bracket : otherCategoryBracket,
+                            category === 'Doubles' ? bracket : otherCategoryBracket
+                          ),
+                          'badminton_complete_bracket.csv'
+                        );
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-purple-500" />
+                      Complete Bracket CSV
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadCSV(
+                          generateMatchResultsCSV(
+                            category === 'Singles' ? bracket : otherCategoryBracket,
+                            category === 'Doubles' ? bracket : otherCategoryBracket
+                          ),
+                          'badminton_match_results.csv'
+                        );
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-indigo-500" />
+                      Match Results CSV
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadCSV(
+                          generateChampionSummaryCSV(
+                            category === 'Singles' ? bracket : otherCategoryBracket,
+                            category === 'Doubles' ? bracket : otherCategoryBracket
+                          ),
+                          'badminton_champion_summary.csv'
+                        );
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-500" />
+                      Champion Summary CSV
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
