@@ -56,6 +56,8 @@ import {
   Check,
   Printer,
   FileDown,
+  ArrowLeft,
+  ChevronDown,
 } from 'lucide-react';
 
 interface KnockoutBracketViewProps {
@@ -67,6 +69,8 @@ interface KnockoutBracketViewProps {
   onBracketChange: (bracket: KnockoutBracket | null) => void;
   otherCategoryBracket: KnockoutBracket | null;
   settings: SchedulingSettings;
+  onBackToRoster?: () => void;
+  onManagePartners?: () => void;
 }
 
 export function KnockoutBracketView({
@@ -78,6 +82,8 @@ export function KnockoutBracketView({
   onBracketChange,
   otherCategoryBracket,
   settings,
+  onBackToRoster,
+  onManagePartners,
 }: KnockoutBracketViewProps) {
   // 1. Matchup Preferences
   const [firstTeamA, setFirstTeamA] = useState<TeamName>('Blue Team');
@@ -248,27 +254,57 @@ export function KnockoutBracketView({
   return (
     <div className="space-y-5">
       {/* Knockout Configuration & Action Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-indigo-600 text-white shadow-xs">
-              <Trophy className="w-5 h-5" />
-            </span>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                Automatic {category} Knockout Generator
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Single-Elimination
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500">
-                Single-elimination championship format. Opening round feeds through quarterfinals, semifinals, and the final.
-              </p>
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-4">
+        {/* Top Header Row with Navigation & View Switcher */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+          <div className="flex items-center gap-3">
+            {onBackToRoster && (
+              <button
+                type="button"
+                onClick={onBackToRoster}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                title="Return to Employee Roster"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Employee List</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-gradient-to-br from-amber-500 to-indigo-600 text-white shadow-xs">
+                <Trophy className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                  {category} Knockout Fixtures
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Single-Elimination
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {category === 'Singles'
+                    ? `${bracket?.totalParticipants || eligibleCount} Players`
+                    : `${bracket?.totalParticipants || doublesPairs.length} Approved Pairs`}{' '}
+                  • {bracket?.rounds.flatMap((r) => r.matches).length || 0} Matches
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Bracket Status Badges */}
+          {/* Right Badges & Navigation Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
+            {category === 'Doubles' && onManagePartners && (
+              <button
+                type="button"
+                onClick={onManagePartners}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition-colors cursor-pointer"
+                title="Review and adjust doubles partner pairings"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Review Partner Pairs</span>
+              </button>
+            )}
+
             {bracket && (
               <span
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${
@@ -282,7 +318,7 @@ export function KnockoutBracketView({
               </span>
             )}
 
-            {/* View Switcher */}
+            {/* View Switcher: Bracket vs Table */}
             <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-xs">
               <button
                 type="button"
@@ -310,52 +346,94 @@ export function KnockoutBracketView({
           </div>
         </div>
 
-        {/* Configuration Row: Team Matchup Preference & Generate */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* First Team A */}
-          <div className="md:col-span-3 space-y-1">
-            <span className="text-[11px] font-semibold text-slate-500">Opening Team A</span>
-            <select
-              value={firstTeamA}
-              onChange={(e) => setFirstTeamA(e.target.value as TeamName)}
-              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-xs"
-            >
-              {TEAM_NAMES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Action Controls Row */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          {/* Left: Collapsible Secondary Matchup Settings */}
+          <details className="group">
+            <summary className="text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer flex items-center gap-1.5 select-none py-1">
+              <span>Opening Matchup Preferences (Optional)</span>
+              <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="pt-2 flex items-center gap-2 flex-wrap text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 mt-1">
+              <span className="font-semibold text-slate-600">Opening:</span>
+              <select
+                value={firstTeamA}
+                onChange={(e) => setFirstTeamA(e.target.value as TeamName)}
+                className="px-2 py-1 bg-white border border-slate-300 rounded font-bold text-slate-800 text-xs"
+              >
+                {TEAM_NAMES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <span className="font-bold text-slate-400">vs</span>
+              <select
+                value={firstTeamB}
+                onChange={(e) => setFirstTeamB(e.target.value as TeamName)}
+                className="px-2 py-1 bg-white border border-slate-300 rounded font-bold text-slate-800 text-xs"
+              >
+                {TEAM_NAMES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </details>
 
-          <div className="md:col-span-1 text-center font-bold text-xs text-slate-400 pt-3">VS</div>
+          {/* Right: Primary Fixture Controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Direct Download PDF Button (First-Class Export) */}
+            {bracket && (
+              <button
+                type="button"
+                onClick={() => {
+                  downloadKnockoutFixtureListPDF(bracket, {
+                    tournamentDate: settings.defaultDate,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                title="Download clean printable A4 PDF fixture list for notice board"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span>Download Fixture List (PDF)</span>
+              </button>
+            )}
 
-          {/* First Team B */}
-          <div className="md:col-span-3 space-y-1">
-            <span className="text-[11px] font-semibold text-slate-500">Opening Team B</span>
-            <select
-              value={firstTeamB}
-              onChange={(e) => setFirstTeamB(e.target.value as TeamName)}
-              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg font-bold text-slate-800 text-xs"
-            >
-              {TEAM_NAMES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* Direct Print Button (First-Class Export) */}
+            {bracket && (
+              <button
+                type="button"
+                onClick={() => {
+                  printKnockoutFixtureList(bracket, {
+                    tournamentDate: settings.defaultDate,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl shadow-2xs transition-colors cursor-pointer"
+                title="Print clean fixture list for notice board"
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>Print Fixture List</span>
+              </button>
+            )}
 
-          {/* Action Buttons */}
-          <div className="md:col-span-5 flex items-center justify-end gap-2 pt-3 flex-wrap">
-            {/* Generate Knockout Bracket Button */}
+            {/* Regenerate Fixtures */}
             <button
               type="button"
-              onClick={handleGenerateBracket}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              onClick={() => {
+                if (bracket?.hasStarted) {
+                  const confirmRegen = window.confirm(
+                    'Match results have already been recorded. Regenerating the bracket will reset all recorded scores. Do you want to proceed?'
+                  );
+                  if (!confirmRegen) return;
+                }
+                handleGenerateBracket();
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>Generate Knockout Bracket</span>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Regenerate Fixtures</span>
             </button>
 
             {/* Shuffle Button */}
@@ -389,7 +467,7 @@ export function KnockoutBracketView({
               </button>
             )}
 
-            {/* Reset */}
+            {/* Reset Scores */}
             {bracket && (
               <button
                 type="button"
@@ -399,40 +477,6 @@ export function KnockoutBracketView({
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset</span>
-              </button>
-            )}
-
-            {/* Direct Download PDF Button (First-Class Export) */}
-            {bracket && (
-              <button
-                type="button"
-                onClick={() => {
-                  downloadKnockoutFixtureListPDF(bracket, {
-                    tournamentDate: settings.defaultDate,
-                  });
-                }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-                title="Download clean printable A4 PDF fixture list for notice board"
-              >
-                <FileDown className="w-3.5 h-3.5" />
-                <span>Download Fixture List (PDF)</span>
-              </button>
-            )}
-
-            {/* Direct Print Button (First-Class Export) */}
-            {bracket && (
-              <button
-                type="button"
-                onClick={() => {
-                  printKnockoutFixtureList(bracket, {
-                    tournamentDate: settings.defaultDate,
-                  });
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl shadow-2xs transition-colors cursor-pointer"
-                title="Print clean fixture list for notice board"
-              >
-                <Printer className="w-3.5 h-3.5 text-slate-600" />
-                <span>Print Fixture List</span>
               </button>
             )}
 

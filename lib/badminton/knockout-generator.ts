@@ -102,6 +102,121 @@ export function generateDoublesPairs(
   return newPairs;
 }
 
+export interface DoublesGroupingSummary {
+  pairs: DoublesPair[];
+  unpairedByTeam: {
+    team: TeamName;
+    unpaired: Participant[];
+  }[];
+  totalUnpairedCount: number;
+}
+
+/**
+ * Calculates pairing summary and detects any unpaired participants per team.
+ */
+export function getDoublesPairingSummary(
+  participants: Participant[],
+  doublesPairs: DoublesPair[]
+): DoublesGroupingSummary {
+  const eligibleDoubles = participants.filter((p) => p.doublesRegistered);
+  const pairedPlayerIds = new Set<string>();
+  doublesPairs.forEach((pair) => {
+    pairedPlayerIds.add(pair.player1.id);
+    pairedPlayerIds.add(pair.player2.id);
+  });
+
+  const unpairedByTeam = TEAM_NAMES.map((team) => {
+    const unpaired = eligibleDoubles.filter(
+      (p) => p.team === team && !pairedPlayerIds.has(p.id)
+    );
+    return { team, unpaired };
+  });
+
+  const totalUnpairedCount = unpairedByTeam.reduce(
+    (sum, t) => sum + t.unpaired.length,
+    0
+  );
+
+  return {
+    pairs: doublesPairs,
+    unpairedByTeam,
+    totalUnpairedCount,
+  };
+}
+
+/**
+ * Swaps two partners between two pairs of the same team.
+ */
+export function swapDoublesPartners(
+  pairs: DoublesPair[],
+  pairId1: string,
+  playerNum1: 1 | 2,
+  pairId2: string,
+  playerNum2: 1 | 2
+): DoublesPair[] {
+  const pair1 = pairs.find((p) => p.id === pairId1);
+  const pair2 = pairs.find((p) => p.id === pairId2);
+  if (!pair1 || !pair2) return pairs;
+  if (pair1.team !== pair2.team) {
+    throw new Error('Partners can only be swapped between pairs of the same team.');
+  }
+
+  const p1 = playerNum1 === 1 ? pair1.player1 : pair1.player2;
+  const p2 = playerNum2 === 1 ? pair2.player1 : pair2.player2;
+
+  return pairs.map((pair) => {
+    if (pair.id === pairId1) {
+      return {
+        ...pair,
+        player1: playerNum1 === 1 ? p2 : pair.player1,
+        player2: playerNum1 === 2 ? p2 : pair.player2,
+      };
+    }
+    if (pair.id === pairId2) {
+      return {
+        ...pair,
+        player1: playerNum2 === 1 ? p1 : pair.player1,
+        player2: playerNum2 === 2 ? p1 : pair.player2,
+      };
+    }
+    return pair;
+  });
+}
+
+/**
+ * Replaces a partner in a pair with an unpaired participant from the same team.
+ */
+export function replaceDoublesPartnerWithUnpaired(
+  pairs: DoublesPair[],
+  pairId: string,
+  playerNum: 1 | 2,
+  unpairedParticipant: Participant
+): DoublesPair[] {
+  const pair = pairs.find((p) => p.id === pairId);
+  if (!pair) return pairs;
+  if (pair.team !== unpairedParticipant.team) {
+    throw new Error('Partners must belong to the same team.');
+  }
+
+  const newPlayer = {
+    id: unpairedParticipant.id,
+    name: unpairedParticipant.name,
+    gender: (unpairedParticipant.gender || 'Men') as any,
+    office: (unpairedParticipant.office || 'Guindy') as any,
+  };
+
+  return pairs.map((p) => {
+    if (p.id === pairId) {
+      return {
+        ...p,
+        player1: playerNum === 1 ? newPlayer : p.player1,
+        player2: playerNum === 2 ? newPlayer : p.player2,
+      };
+    }
+    return p;
+  });
+}
+
 /**
  * Prepares participant entries for the bracket.
  * For Singles: 1 player per entry.
@@ -194,11 +309,11 @@ export function createKnockoutBracket(
 
   const finalSeededSlots: (KnockoutParticipantEntry | null)[] = new Array(bracketSize).fill(null);
 
-  // Pool of available entries per team
-  const poolA = [...(entriesByTeam.get(firstTeamA) || [])];
-  const poolB = [...(entriesByTeam.get(firstTeamB) || [])];
-  const poolC = [...(entriesByTeam.get(compA) || [])];
-  const poolD = [...(entriesByTeam.get(compB) || [])];
+  // Pool of available entries per team (shuffled randomly)
+  const poolA = [...(entriesByTeam.get(firstTeamA) || [])].sort(() => Math.random() - 0.5);
+  const poolB = [...(entriesByTeam.get(firstTeamB) || [])].sort(() => Math.random() - 0.5);
+  const poolC = [...(entriesByTeam.get(compA) || [])].sort(() => Math.random() - 0.5);
+  const poolD = [...(entriesByTeam.get(compB) || [])].sort(() => Math.random() - 0.5);
 
   const popNext = (list: KnockoutParticipantEntry[]): KnockoutParticipantEntry | null => {
     return list.length > 0 ? list.shift()! : null;
@@ -216,12 +331,14 @@ export function createKnockoutBracket(
     if (poolC.length > 0) finalSeededSlots[2] = popNext(poolC);
   }
 
-  // Collect all remaining unplaced entries
+  // Collect all remaining unplaced entries and shuffle them
   const usedIds = new Set<string>();
   finalSeededSlots.forEach((s) => {
     if (s) usedIds.add(s.id);
   });
-  const unplacedEntries = entries.filter((e) => !usedIds.has(e.id));
+  const unplacedEntries = entries
+    .filter((e) => !usedIds.has(e.id))
+    .sort(() => Math.random() - 0.5);
   let unplacedIdx = 0;
 
   // Fill remaining slots:

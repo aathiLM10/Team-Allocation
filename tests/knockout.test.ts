@@ -3,6 +3,9 @@ import {
   calculateBracketSize,
   getKnockoutRoundNames,
   generateDoublesPairs,
+  getDoublesPairingSummary,
+  swapDoublesPartners,
+  replaceDoublesPartnerWithUnpaired,
   prepareKnockoutEntries,
   createKnockoutBracket,
   recordMatchResult,
@@ -54,8 +57,12 @@ describe('Knockout Tournament Generator System', () => {
       expect(bracket.rounds).toHaveLength(1);
       expect(bracket.rounds[0].roundName).toBe('Final');
       expect(bracket.rounds[0].matches).toHaveLength(1);
-      expect(bracket.rounds[0].matches[0].sideA.participant?.id).toBe(twoParticipants[0].id);
-      expect(bracket.rounds[0].matches[0].sideB.participant?.id).toBe(twoParticipants[1].id);
+      const matchPIds = [
+        bracket.rounds[0].matches[0].sideA.participant?.id,
+        bracket.rounds[0].matches[0].sideB.participant?.id,
+      ];
+      expect(matchPIds).toContain(twoParticipants[0].id);
+      expect(matchPIds).toContain(twoParticipants[1].id);
     });
 
     it('generates a 3-participant bracket with exactly 1 bye (N - 1 = 2 actual matches played)', () => {
@@ -246,6 +253,66 @@ describe('Knockout Tournament Generator System', () => {
       expect(match1.sideA.participant?.team).toBe('Red Team');
       expect(match1.sideB.participant?.team).toBe('Grey Team');
       expect(match1.sideA.participant?.team).not.toBe(match1.sideB.participant?.team);
+    });
+
+    it('identifies unpaired participants when a team has an odd count of doubles players', () => {
+      // Create 5 Blue players, 4 White players
+      const oddParticipants: Participant[] = [
+        { id: 'B1', name: 'Blue 1', team: 'Blue Team', office: 'Guindy', gender: 'Men', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B2', name: 'Blue 2', team: 'Blue Team', office: 'Guindy', gender: 'Women', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B3', name: 'Blue 3', team: 'Blue Team', office: 'Vandaloor', gender: 'Men', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B4', name: 'Blue 4', team: 'Blue Team', office: 'Vandaloor', gender: 'Women', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B5', name: 'Blue 5', team: 'Blue Team', office: 'Guindy', gender: 'Men', singlesRegistered: false, doublesRegistered: true },
+        { id: 'W1', name: 'White 1', team: 'White Team', office: 'Guindy', gender: 'Men', singlesRegistered: false, doublesRegistered: true },
+        { id: 'W2', name: 'White 2', team: 'White Team', office: 'Vandaloor', gender: 'Women', singlesRegistered: false, doublesRegistered: true },
+      ];
+
+      const pairs = generateDoublesPairs(oddParticipants, []);
+      // 5 Blue -> 2 pairs (4 players), 1 unpaired
+      // 2 White -> 1 pair (2 players), 0 unpaired
+      expect(pairs).toHaveLength(3);
+
+      const summary = getDoublesPairingSummary(oddParticipants, pairs);
+      expect(summary.totalUnpairedCount).toBe(1);
+
+      const blueSummary = summary.unpairedByTeam.find((t) => t.team === 'Blue Team');
+      expect(blueSummary?.unpaired).toHaveLength(1);
+      expect(blueSummary?.unpaired[0].id).toBe('B5');
+    });
+
+    it('swaps partners between two pairs of the same team cleanly', () => {
+      const participants: Participant[] = [
+        { id: 'B1', name: 'Player 1', team: 'Blue Team', office: 'Guindy', gender: 'Men', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B2', name: 'Player 2', team: 'Blue Team', office: 'Guindy', gender: 'Women', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B3', name: 'Player 3', team: 'Blue Team', office: 'Vandaloor', gender: 'Men', singlesRegistered: false, doublesRegistered: true },
+        { id: 'B4', name: 'Player 4', team: 'Blue Team', office: 'Vandaloor', gender: 'Women', singlesRegistered: false, doublesRegistered: true },
+      ];
+
+      const pairs: DoublesPair[] = [
+        {
+          id: 'PAIR_01',
+          team: 'Blue Team',
+          player1: { id: 'B1', name: 'Player 1', office: 'Guindy', gender: 'Men' },
+          player2: { id: 'B2', name: 'Player 2', office: 'Guindy', gender: 'Women' },
+          isLocked: false,
+          createdAt: 100,
+        },
+        {
+          id: 'PAIR_02',
+          team: 'Blue Team',
+          player1: { id: 'B3', name: 'Player 3', office: 'Vandaloor', gender: 'Men' },
+          player2: { id: 'B4', name: 'Player 4', office: 'Vandaloor', gender: 'Women' },
+          isLocked: false,
+          createdAt: 100,
+        },
+      ];
+
+      const swapped = swapDoublesPartners(pairs, 'PAIR_01', 2, 'PAIR_02', 1);
+      const p1 = swapped.find((p) => p.id === 'PAIR_01');
+      const p2 = swapped.find((p) => p.id === 'PAIR_02');
+
+      expect(p1?.player2.id).toBe('B3'); // was B2, now B3
+      expect(p2?.player1.id).toBe('B2'); // was B3, now B2
     });
   });
 
