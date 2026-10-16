@@ -52,7 +52,7 @@ export function AppHeader({ onReset, onOpenSpecs, hasData = false }: AppHeaderPr
         {/* Global Navigation Links */}
         <div className="flex items-center gap-3">
           <nav className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
-            {/* Badminton Fixtures (Default Landing Page) */}
+            {/* Badminton Doubles (Default Landing Page) */}
             <Link
               href="/"
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -62,7 +62,7 @@ export function AppHeader({ onReset, onOpenSpecs, hasData = false }: AppHeaderPr
               }`}
             >
               <span className="text-sm">🏸</span>
-              <span>Badminton Fixtures</span>
+              <span>Badminton Doubles</span>
             </Link>
 
             {/* Team Shuffle */}

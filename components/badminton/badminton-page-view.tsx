@@ -8,10 +8,11 @@ import {
   DEFAULT_SCHEDULING_SETTINGS,
 } from '@/types/fixture';
 import { Participant, TournamentSummaryStats } from '@/types/badminton';
-import { TeamAllocation, TeamName } from '@/types/employee';
+import { TeamName, TEAM_NAMES } from '@/types/employee';
 import {
   SAMPLE_PARTICIPANTS,
-  getSampleFixtures,
+  getRealCompanyParticipants,
+  generateTeamColumnsCSV,
   generateBlankParticipationCSV,
   generateCombinedParticipationCSV,
   generateSinglesOnlyCSV,
@@ -20,10 +21,10 @@ import {
 import {
   parseParticipantFile,
   processParticipantRows,
+  isTeamColumnsLayout,
 } from '@/lib/badminton/participant-import';
-import {
-  detectAllFixtureConflicts,
-} from '@/lib/fixtures/fixture-validation';
+import { getComplementaryMatchup } from '@/lib/badminton/auto-shuffle';
+import { detectAllFixtureConflicts } from '@/lib/fixtures/fixture-validation';
 import {
   exportMasterFixturesExcel,
   exportFixturesToCSV,
@@ -49,17 +50,13 @@ import {
 import {
   Trophy,
   Settings,
-  FileSpreadsheet,
   Download,
-  AlertTriangle,
   RotateCcw,
   Sparkles,
   ChevronDown,
-  Layers,
   Users,
   User,
   CheckCircle2,
-  Trash2,
   UploadCloud,
   FileText,
   Calendar,
@@ -67,100 +64,120 @@ import {
   Printer,
   ArrowRight,
   Plus,
+  RefreshCw,
+  Sliders,
+  ListOrdered,
+  Shuffle,
+  Shield,
+  Layers,
 } from 'lucide-react';
 
-export type BadmintonAppTab =
-  | 'initial-view'       // State 1: No data loaded
-  | 'employee-roster'    // State 2: Data loaded, review participants & generate buttons
-  | 'doubles-pairing'    // State 3: Doubles partner pairing review
-  | 'singles-fixtures'   // State 4: Singles knockout tournament active
-  | 'doubles-fixtures'   // State 4: Doubles knockout tournament active
-  | 'import-data';       // Full import wizard
+export type MainCategoryTab = 'singles' | 'doubles' | 'all-roster';
 
 export function BadmintonPageView() {
-  // 1. Core State
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [fixtures, setFixtures] = useState<BadmintonFixture[]>([]);
-  const [settings, setSettings] = useState<SchedulingSettings>(DEFAULT_SCHEDULING_SETTINGS);
+  // 1. Separate Participant Pools for Singles and Doubles
+  const [singlesParticipants, setSinglesParticipants] = useState<Participant[]>([]);
+  const [doublesParticipants, setDoublesParticipants] = useState<Participant[]>([]);
 
-  // 2. Active Tab / Workflow View
-  const [activeTab, setActiveTab] = useState<BadmintonAppTab>('initial-view');
-
-  // 3. Dropdowns & Modals
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showTemplateMenu, setShowTemplateMenu] = useState(false);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // 4. Knockout Tournament Brackets & Pairs
+  // 2. Knockout Tournament Brackets & Doubles Pairs
   const [singlesBracket, setSinglesBracket] = useState<KnockoutBracket | null>(null);
   const [doublesBracket, setDoublesBracket] = useState<KnockoutBracket | null>(null);
   const [doublesPairs, setDoublesPairs] = useState<DoublesPair[]>([]);
 
-  // Initialize from localStorage ONLY if existing user records are found; do not auto-load sample data
+  // 3. Team Matchup Selections (Which two teams face each other)
+  const [singlesTeamA, setSinglesTeamA] = useState<TeamName>('Red Team');
+  const [singlesTeamB, setSinglesTeamB] = useState<TeamName>('White Team');
+  const [doublesTeamA, setDoublesTeamA] = useState<TeamName>('Red Team');
+  const [doublesTeamB, setDoublesTeamB] = useState<TeamName>('White Team');
+
+  // 4. Active Navigation Tab
+  const [activeTab, setActiveTab] = useState<MainCategoryTab>('singles');
+
+  // 5. Settings & Modals
+  const [settings, setSettings] = useState<SchedulingSettings>(DEFAULT_SCHEDULING_SETTINGS);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+
+  // File input refs for dedicated uploads
+  const singlesFileInputRef = useRef<HTMLInputElement>(null);
+  const doublesFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved state from localStorage on initial render
   useEffect(() => {
     try {
-      const savedP = localStorage.getItem('badminton_participants_v2');
-      const savedF = localStorage.getItem('badminton_fixtures_v2');
-      const savedS = localStorage.getItem('badminton_settings_v2');
-      const savedSB = localStorage.getItem('badminton_singles_bracket_v1');
-      const savedDB = localStorage.getItem('badminton_doubles_bracket_v1');
-      const savedDP = localStorage.getItem('badminton_doubles_pairs_v1');
+      const savedSP = localStorage.getItem('badminton_singles_participants_v3');
+      const savedDP = localStorage.getItem('badminton_doubles_participants_v3');
+      const savedSB = localStorage.getItem('badminton_singles_bracket_v2');
+      const savedDB = localStorage.getItem('badminton_doubles_bracket_v2');
+      const savedPairs = localStorage.getItem('badminton_doubles_pairs_v2');
+      const savedSettings = localStorage.getItem('badminton_settings_v2');
+      const savedSTA = localStorage.getItem('badminton_singles_team_a');
+      const savedSTB = localStorage.getItem('badminton_singles_team_b');
+      const savedDTA = localStorage.getItem('badminton_doubles_team_a');
+      const savedDTB = localStorage.getItem('badminton_doubles_team_b');
 
-      if (savedP) {
-        const parsedP: Participant[] = JSON.parse(savedP);
-        if (Array.isArray(parsedP) && parsedP.length > 0) {
-          setParticipants(parsedP);
-
-          if (savedDP) setDoublesPairs(JSON.parse(savedDP));
-          if (savedSB) setSinglesBracket(JSON.parse(savedSB));
-          if (savedDB) setDoublesBracket(JSON.parse(savedDB));
-          if (savedF) setFixtures(JSON.parse(savedF));
-
-          // If brackets were already active, show the appropriate bracket view, otherwise employee roster
-          if (savedSB) {
-            setActiveTab('singles-fixtures');
-          } else if (savedDB) {
-            setActiveTab('doubles-fixtures');
-          } else {
-            setActiveTab('employee-roster');
-          }
-          return;
+      if (savedSP) {
+        const parsed = JSON.parse(savedSP);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSinglesParticipants(parsed);
         }
       }
+      if (savedDP) {
+        const parsed = JSON.parse(savedDP);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setDoublesParticipants(parsed);
+        }
+      }
+      if (savedSB) setSinglesBracket(JSON.parse(savedSB));
+      if (savedDB) setDoublesBracket(JSON.parse(savedDB));
+      if (savedPairs) setDoublesPairs(JSON.parse(savedPairs));
+      if (savedSettings) setSettings(JSON.parse(savedSettings));
 
-      // No saved data found -> remain in clean Initial State
-      setParticipants([]);
-      setActiveTab('initial-view');
+      if (savedSTA) setSinglesTeamA(savedSTA as TeamName);
+      if (savedSTB) setSinglesTeamB(savedSTB as TeamName);
+      if (savedDTA) setDoublesTeamA(savedDTA as TeamName);
+      if (savedDTB) setDoublesTeamB(savedDTB as TeamName);
 
-      if (savedS) {
-        setSettings(JSON.parse(savedS));
+      // Backwards compatibility migration from legacy combined roster
+      if (!savedSP && !savedDP) {
+        const legacyP = localStorage.getItem('badminton_participants_v2');
+        if (legacyP) {
+          const parsedLegacy: Participant[] = JSON.parse(legacyP);
+          if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+            const sPlayers = parsedLegacy.filter((p) => p.singlesRegistered);
+            const dPlayers = parsedLegacy.filter((p) => p.doublesRegistered);
+            setSinglesParticipants(sPlayers);
+            setDoublesParticipants(dPlayers);
+            if (dPlayers.length > 0) {
+              setDoublesPairs(generateDoublesPairs(dPlayers, []));
+            }
+          }
+        }
       }
     } catch (e) {
       console.warn('Error reading from localStorage:', e);
-      setParticipants([]);
-      setActiveTab('initial-view');
     }
   }, []);
 
-  // Sync state to localStorage
+  // Sync state changes to localStorage
   useEffect(() => {
     try {
-      if (participants.length > 0) {
-        localStorage.setItem('badminton_participants_v2', JSON.stringify(participants));
-      } else {
-        localStorage.removeItem('badminton_participants_v2');
-      }
+      localStorage.setItem('badminton_singles_participants_v3', JSON.stringify(singlesParticipants));
     } catch (e) {}
-  }, [participants]);
+  }, [singlesParticipants]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('badminton_doubles_participants_v3', JSON.stringify(doublesParticipants));
+    } catch (e) {}
+  }, [doublesParticipants]);
 
   useEffect(() => {
     try {
       if (singlesBracket) {
-        localStorage.setItem('badminton_singles_bracket_v1', JSON.stringify(singlesBracket));
+        localStorage.setItem('badminton_singles_bracket_v2', JSON.stringify(singlesBracket));
       } else {
-        localStorage.removeItem('badminton_singles_bracket_v1');
+        localStorage.removeItem('badminton_singles_bracket_v2');
       }
     } catch (e) {}
   }, [singlesBracket]);
@@ -168,9 +185,9 @@ export function BadmintonPageView() {
   useEffect(() => {
     try {
       if (doublesBracket) {
-        localStorage.setItem('badminton_doubles_bracket_v1', JSON.stringify(doublesBracket));
+        localStorage.setItem('badminton_doubles_bracket_v2', JSON.stringify(doublesBracket));
       } else {
-        localStorage.removeItem('badminton_doubles_bracket_v1');
+        localStorage.removeItem('badminton_doubles_bracket_v2');
       }
     } catch (e) {}
   }, [doublesBracket]);
@@ -178,18 +195,12 @@ export function BadmintonPageView() {
   useEffect(() => {
     try {
       if (doublesPairs.length > 0) {
-        localStorage.setItem('badminton_doubles_pairs_v1', JSON.stringify(doublesPairs));
+        localStorage.setItem('badminton_doubles_pairs_v2', JSON.stringify(doublesPairs));
       } else {
-        localStorage.removeItem('badminton_doubles_pairs_v1');
+        localStorage.removeItem('badminton_doubles_pairs_v2');
       }
     } catch (e) {}
   }, [doublesPairs]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('badminton_fixtures_v2', JSON.stringify(fixtures));
-    } catch (e) {}
-  }, [fixtures]);
 
   useEffect(() => {
     try {
@@ -197,320 +208,311 @@ export function BadmintonPageView() {
     } catch (e) {}
   }, [settings]);
 
-  // Derived counts
-  const singlesParticipantsCount = useMemo(() => {
-    return participants.filter((p) => p.singlesRegistered).length;
-  }, [participants]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('badminton_singles_team_a', singlesTeamA);
+      localStorage.setItem('badminton_singles_team_b', singlesTeamB);
+      localStorage.setItem('badminton_doubles_team_a', doublesTeamA);
+      localStorage.setItem('badminton_doubles_team_b', doublesTeamB);
+    } catch (e) {}
+  }, [singlesTeamA, singlesTeamB, doublesTeamA, doublesTeamB]);
 
-  const doublesParticipantsCount = useMemo(() => {
-    return participants.filter((p) => p.doublesRegistered).length;
-  }, [participants]);
+  // Derived Complementary Matchups
+  const singlesComplementary = useMemo(() => {
+    try {
+      return getComplementaryMatchup(singlesTeamA, singlesTeamB);
+    } catch {
+      return ['Blue Team', 'Grey Team'] as [TeamName, TeamName];
+    }
+  }, [singlesTeamA, singlesTeamB]);
 
-  // Tournament lifecycle state
-  const tournamentStatus = useMemo(() => {
-    if (participants.length === 0) return 'NO_DATA';
-    if (!singlesBracket && !doublesBracket) return 'DATA_LOADED';
+  const doublesComplementary = useMemo(() => {
+    try {
+      return getComplementaryMatchup(doublesTeamA, doublesTeamB);
+    } catch {
+      return ['Blue Team', 'Grey Team'] as [TeamName, TeamName];
+    }
+  }, [doublesTeamA, doublesTeamB]);
 
-    const sDone = singlesBracket?.champion !== null && singlesBracket?.champion !== undefined;
-    const dDone = doublesBracket?.champion !== null && doublesBracket?.champion !== undefined;
-    if (sDone && dDone) return 'COMPLETED';
-
-    const sStarted = singlesBracket?.rounds.some((r) =>
-      r.matches.some((m) => m.status === 'Completed' || m.status === 'Walkover')
-    );
-    const dStarted = doublesBracket?.rounds.some((r) =>
-      r.matches.some((m) => m.status === 'Completed' || m.status === 'Walkover')
-    );
-    if (sStarted || dStarted) return 'IN_PROGRESS';
-
-    return 'FIXTURES_GENERATED';
-  }, [participants, singlesBracket, doublesBracket]);
-
-  // Conflict calculations for scheduled manual fixtures
-  const conflictMap = useMemo(() => {
-    return detectAllFixtureConflicts(fixtures, settings);
-  }, [fixtures, settings]);
-
-  const conflictsList = useMemo(() => {
-    const list: any[] = [];
-    conflictMap.forEach((cList) => {
-      cList.forEach((c) => {
-        if (!list.some((existing) => existing.fixtureId === c.fixtureId && existing.message === c.message)) {
-          list.push(c);
-        }
+  // Combined Participants Roster for full table view
+  const allCombinedParticipants = useMemo(() => {
+    const map = new Map<string, Participant>();
+    singlesParticipants.forEach((p) => {
+      map.set(p.name.toLowerCase() + '_' + p.team, {
+        ...p,
+        singlesRegistered: true,
+        doublesRegistered: false,
       });
     });
-    return list;
-  }, [conflictMap]);
-
-  // KPI Calculations
-  const stats: TournamentSummaryStats = useMemo(() => {
-    const singlesP = participants.filter((p) => p.singlesRegistered).length;
-    const doublesP = participants.filter((p) => p.doublesRegistered).length;
-    const bothP = participants.filter((p) => p.singlesRegistered && p.doublesRegistered).length;
-    const neitherP = participants.filter((p) => !p.singlesRegistered && !p.doublesRegistered).length;
-
-    const singlesF = fixtures.filter((f) => f.category === 'Singles').length;
-    const doublesF = fixtures.filter((f) => f.category === 'Doubles').length;
-
-    const teams: TeamName[] = ['White Team', 'Red Team', 'Blue Team', 'Grey Team'];
-    const dist: any = {};
-    teams.forEach((t) => {
-      const m = participants.filter((p) => p.team === t);
-      dist[t] = {
-        total: m.length,
-        singles: m.filter((p) => p.singlesRegistered).length,
-        doubles: m.filter((p) => p.doublesRegistered).length,
-      };
+    doublesParticipants.forEach((p) => {
+      const key = p.name.toLowerCase() + '_' + p.team;
+      const existing = map.get(key);
+      if (existing) {
+        existing.doublesRegistered = true;
+      } else {
+        map.set(key, {
+          ...p,
+          singlesRegistered: false,
+          doublesRegistered: true,
+        });
+      }
     });
+    return Array.from(map.values());
+  }, [singlesParticipants, doublesParticipants]);
 
-    return {
-      totalParticipants: participants.length,
-      singlesParticipants: singlesP,
-      doublesParticipants: doublesP,
-      bothCategoriesCount: bothP,
-      neitherCategoryCount: neitherP,
-      totalFixtures: fixtures.length,
-      singlesFixtures: singlesF,
-      doublesFixtures: doublesF,
-      scheduledFixtures: fixtures.filter((f) => f.status === 'Scheduled').length,
-      inProgressFixtures: fixtures.filter((f) => f.status === 'In Progress').length,
-      completedFixtures: fixtures.filter((f) => f.status === 'Completed').length,
-      activeConflictsCount: Math.floor(conflictsList.length / 2),
-      teamDistribution: dist,
-    };
-  }, [participants, fixtures, conflictsList]);
-
-  // ACTION: Direct file upload from Initial View
-  const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ACTION: Dedicated Upload for Singles
+  const handleUploadSinglesFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       const rawRecords = await parseParticipantFile(file);
-      const { rows } = processParticipantRows(rawRecords, 'combined', []);
-      const validParticipants = rows
+      const { rows } = processParticipantRows(rawRecords, 'singles-only', []);
+      const validSingles = rows
         .filter((r) => r.isValid)
         .map((r) => ({
           id: r.id,
           name: r.name,
-          team: r.team as any,
+          team: r.team as TeamName,
           office: (r.office || 'Guindy') as any,
           gender: (r.gender || 'Men') as any,
-          singlesRegistered: r.singlesRegistered,
-          doublesRegistered: r.doublesRegistered,
+          singlesRegistered: true,
+          doublesRegistered: false,
+          source: 'upload' as const,
         }));
 
-      if (validParticipants.length === 0) {
-        alert(
-          'No valid employee records found in the uploaded file. Please ensure columns include ID, Name, and Team (White, Red, Blue, Grey).'
-        );
+      if (validSingles.length === 0) {
+        alert('No valid participants found. Please ensure the file contains employee names under team columns (Red, Blue, Grey, White).');
         return;
       }
 
-      setParticipants(validParticipants);
+      setSinglesParticipants(validSingles);
       setSinglesBracket(null);
-      setDoublesBracket(null);
-      setDoublesPairs([]);
-      setActiveTab('employee-roster');
+      setActiveTab('singles');
     } catch (err: any) {
       alert(`Error reading file: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (singlesFileInputRef.current) singlesFileInputRef.current.value = '';
     }
   };
 
-  // ACTION: Load Sample Data
-  const handleLoadSampleData = () => {
-    if (participants.length > 0) {
-      const confirmReplace = window.confirm(
-        'Participant records already exist. Do you want to load the 28 sample participants? Current data will be replaced.'
-      );
-      if (!confirmReplace) return;
+  // ACTION: Dedicated Upload for Doubles
+  const handleUploadDoublesFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const rawRecords = await parseParticipantFile(file);
+      const { rows } = processParticipantRows(rawRecords, 'doubles-only', []);
+      const validDoubles = rows
+        .filter((r) => r.isValid)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          team: r.team as TeamName,
+          office: (r.office || 'Guindy') as any,
+          gender: (r.gender || 'Men') as any,
+          singlesRegistered: false,
+          doublesRegistered: true,
+          source: 'upload' as const,
+        }));
+
+      if (validDoubles.length === 0) {
+        alert('No valid participants found. Please ensure the file contains employee names under team columns (Red, Blue, Grey, White).');
+        return;
+      }
+
+      setDoublesParticipants(validDoubles);
+      setDoublesBracket(null);
+      // Immediately pair players within their teams alphabetically
+      const generatedPairs = generateDoublesPairs(validDoubles, []);
+      setDoublesPairs(generatedPairs);
+      setActiveTab('doubles');
+    } catch (err: any) {
+      alert(`Error reading file: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      if (doublesFileInputRef.current) doublesFileInputRef.current.value = '';
     }
-
-    setParticipants(SAMPLE_PARTICIPANTS);
-    setSinglesBracket(null);
-    setDoublesBracket(null);
-    setDoublesPairs([]);
-    setActiveTab('employee-roster');
   };
 
-  // ACTION: Reset & Clear All Data
-  const handleClearAllData = () => {
-    const confirmClear = window.confirm(
-      'Are you sure you want to clear all employee participants and generated fixtures? This will reset the application to the initial state.'
-    );
-    if (!confirmClear) return;
-
-    setParticipants([]);
+  // ACTION: Load Sample Roster for Singles (69 Players from screenshot)
+  const handleLoadSampleSingles = () => {
+    const sampleSingles = getRealCompanyParticipants('singles');
+    setSinglesParticipants(sampleSingles);
     setSinglesBracket(null);
-    setDoublesBracket(null);
-    setDoublesPairs([]);
-    setFixtures([]);
-    localStorage.removeItem('badminton_participants_v2');
-    localStorage.removeItem('badminton_singles_bracket_v1');
-    localStorage.removeItem('badminton_doubles_bracket_v1');
-    localStorage.removeItem('badminton_doubles_pairs_v1');
-    localStorage.removeItem('badminton_fixtures_v2');
-    setActiveTab('initial-view');
+    setActiveTab('singles');
   };
 
-  // ACTION: Generate Singles Fixtures (One-Click)
+  // ACTION: Load Sample Roster for Doubles (69 Players from screenshot)
+  const handleLoadSampleDoubles = () => {
+    const sampleDoubles = getRealCompanyParticipants('doubles');
+    setDoublesParticipants(sampleDoubles);
+    setDoublesBracket(null);
+    // Immediately pair within teams alphabetically
+    const pairs = generateDoublesPairs(sampleDoubles, []);
+    setDoublesPairs(pairs);
+    setActiveTab('doubles');
+  };
+
+  // ACTION: Generate Singles Fixtures based on Alphabetical Order
   const handleGenerateSinglesFixtures = () => {
-    const singlesPlayers = participants.filter((p) => p.singlesRegistered);
-    if (singlesPlayers.length < 2) {
-      alert(
-        `Cannot generate Singles Knockout: At least 2 employees must be registered for Singles (currently ${singlesPlayers.length}).`
-      );
+    if (singlesParticipants.length < 2) {
+      alert('At least 2 Singles participants are required to generate fixtures.');
       return;
     }
 
     try {
       const newBracket = createKnockoutBracket(
         'Singles',
-        participants,
+        singlesParticipants,
         [],
-        { category: 'Singles' },
+        {
+          category: 'Singles',
+          firstTeamA: singlesTeamA,
+          firstTeamB: singlesTeamB,
+        },
         settings
       );
       setSinglesBracket(newBracket);
-      setActiveTab('singles-fixtures');
     } catch (e: any) {
-      alert(e.message || 'Error generating Singles knockout bracket');
+      alert(e.message || 'Error generating Singles fixtures');
     }
   };
 
-  // ACTION: Initiate Doubles Workflow (Step 1-3: Pair first, then review)
-  const handleInitiateDoublesWorkflow = () => {
-    const doublesPlayers = participants.filter((p) => p.doublesRegistered);
-    if (doublesPlayers.length < 2) {
-      alert(
-        `Cannot generate Doubles: At least 2 employees must be registered for Doubles (currently ${doublesPlayers.length}).`
-      );
-      return;
-    }
-
-    // Automatically shuffle and pair partners within each team
-    const pairs = generateDoublesPairs(participants, doublesPairs);
-    setDoublesPairs(pairs);
-    // Transition to Doubles Partner Review screen
-    setActiveTab('doubles-pairing');
-  };
-
-  // ACTION: Confirm Doubles Pairs & Generate Bracket (Step 5)
-  const handleConfirmAndGenerateDoublesBracket = () => {
+  // ACTION: Generate Doubles Fixtures based on Alphabetical Pairs
+  const handleGenerateDoublesFixtures = () => {
     if (doublesPairs.length < 2) {
-      alert(
-        `Cannot generate Doubles bracket with only ${doublesPairs.length} pair(s). At least 2 complete pairs are required.`
-      );
+      alert(`Cannot generate Doubles bracket with only ${doublesPairs.length} pair(s). At least 2 pairs are required.`);
       return;
     }
 
     try {
       const newBracket = createKnockoutBracket(
         'Doubles',
-        participants,
+        doublesParticipants,
         doublesPairs,
-        { category: 'Doubles' },
+        {
+          category: 'Doubles',
+          firstTeamA: doublesTeamA,
+          firstTeamB: doublesTeamB,
+        },
         settings
       );
       setDoublesBracket(newBracket);
-      setActiveTab('doubles-fixtures');
     } catch (e: any) {
-      alert(e.message || 'Error generating Doubles knockout bracket');
+      alert(e.message || 'Error generating Doubles fixtures');
     }
   };
 
-  // Handlers for Participant Updates from table
-  const handleUpdateParticipant = (updated: Participant) => {
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    );
-  };
-
-  const handleDeleteParticipant = (id: string) => {
-    setParticipants((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const handleAddParticipant = (newP: Participant) => {
-    setParticipants((prev) => [...prev, newP]);
-  };
-
-  const handleImportComplete = (imported: Participant[], mode: 'replace' | 'append') => {
-    if (mode === 'replace') {
-      setParticipants(imported);
-      setSinglesBracket(null);
-      setDoublesBracket(null);
-      setDoublesPairs([]);
-    } else {
-      setParticipants((prev) => {
-        const idMap = new Map(prev.map((p) => [p.id.toLowerCase(), p]));
-        imported.forEach((p) => idMap.set(p.id.toLowerCase(), p));
-        return Array.from(idMap.values());
-      });
+  // ACTION: Clear Everything / Reset to Initial State
+  const handleClearAllData = () => {
+    if (!window.confirm('Reset all badminton participants and generated brackets? This action cannot be undone.')) {
+      return;
     }
-    setActiveTab('employee-roster');
+    setSinglesParticipants([]);
+    setDoublesParticipants([]);
+    setSinglesBracket(null);
+    setDoublesBracket(null);
+    setDoublesPairs([]);
+    localStorage.removeItem('badminton_singles_participants_v3');
+    localStorage.removeItem('badminton_doubles_participants_v3');
+    localStorage.removeItem('badminton_singles_bracket_v2');
+    localStorage.removeItem('badminton_doubles_bracket_v2');
+    localStorage.removeItem('badminton_doubles_pairs_v2');
+    localStorage.removeItem('badminton_participants_v2');
+    setActiveTab('singles');
   };
 
-  // Export Handlers
-  const handleExportMasterExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      await exportMasterFixturesExcel(fixtures, participants, conflictsList);
-    } finally {
-      setIsExportingExcel(false);
-      setShowExportMenu(false);
+  // Helper: Group and sort players in alphabetical order by team
+  const singlesByTeam = useMemo(() => {
+    const map = new Map<TeamName, Participant[]>();
+    TEAM_NAMES.forEach((t) => map.set(t, []));
+    singlesParticipants.forEach((p) => {
+      if (map.has(p.team)) map.get(p.team)!.push(p);
+    });
+    // Sort alphabetically (A-Z)
+    TEAM_NAMES.forEach((t) => {
+      map.get(t)!.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    return map;
+  }, [singlesParticipants]);
+
+  const doublesByTeam = useMemo(() => {
+    const map = new Map<TeamName, Participant[]>();
+    TEAM_NAMES.forEach((t) => map.set(t, []));
+    doublesParticipants.forEach((p) => {
+      if (map.has(p.team)) map.get(p.team)!.push(p);
+    });
+    TEAM_NAMES.forEach((t) => {
+      map.get(t)!.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    return map;
+  }, [doublesParticipants]);
+
+  // Color badges helper
+  const getTeamBadge = (team: TeamName) => {
+    switch (team) {
+      case 'Blue Team':
+        return 'bg-blue-600 text-white';
+      case 'White Team':
+        return 'bg-slate-200 text-slate-900 border border-slate-300';
+      case 'Red Team':
+        return 'bg-rose-600 text-white';
+      case 'Grey Team':
+        return 'bg-slate-700 text-white';
+      default:
+        return 'bg-slate-100 text-slate-700';
     }
   };
+
+  // Check if anything has been loaded yet
+  const hasAnyData = singlesParticipants.length > 0 || doublesParticipants.length > 0;
 
   return (
     <div className="space-y-6">
-      {/* Hidden File Input for Direct Upload */}
+      {/* Hidden File Inputs for Dedicated Uploads */}
       <input
-        ref={fileInputRef}
+        ref={singlesFileInputRef}
         type="file"
-        accept=".csv, .xlsx, .xls"
-        onChange={handleDirectFileUpload}
+        accept=".xlsx,.xls,.csv"
         className="hidden"
+        onChange={handleUploadSinglesFile}
+      />
+      <input
+        ref={doublesFileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handleUploadDoublesFile}
       />
 
-      {/* TOP HEADER: Clean Tournament Studio Header */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-blue-500/20 border border-blue-400/30 text-xl shadow-inner">
-              🏸
+      {/* ========================================================================= */}
+      {/* APPLICATION HEADER BAR */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-slate-800">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30">
+              Tournament Studio
             </span>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg font-extrabold tracking-tight">
-                  Badminton Tournament Studio
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/30 text-blue-200 border border-blue-400/30">
-                  Common Office Tournament
-                </span>
-                {tournamentStatus !== 'NO_DATA' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                    {participants.length} Employees Loaded
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed mt-0.5">
-                Common badminton championship for all employees from Guindy and Vandaloor. Simple reliable workflow: load data, pair partners, and generate single-elimination knockout fixtures.
-              </p>
-            </div>
+            <span className="text-xs text-slate-400">Solidpro Badminton Championship</span>
           </div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+            <Trophy className="w-6 h-6 text-amber-400" />
+            <span>Badminton Fixtures &amp; Knockout Generator</span>
+          </h2>
+          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+            Upload participant lists for Singles &amp; Doubles separately, select competing teams head-to-head, and generate single-elimination fixtures in alphabetical order.
+          </p>
         </div>
 
-        {/* Global Header Actions */}
+        {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Scheduling Settings */}
+          {/* Settings */}
           <button
             type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors cursor-pointer"
-            title="Configure courts & tournament dates"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-colors cursor-pointer"
           >
             <Settings className="w-3.5 h-3.5 text-blue-300" />
             <span>Settings</span>
@@ -520,11 +522,8 @@ export function BadmintonPageView() {
           <div className="relative">
             <button
               type="button"
-              onClick={() => {
-                setShowTemplateMenu(!showTemplateMenu);
-                setShowExportMenu(false);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors cursor-pointer"
+              onClick={() => setShowTemplateMenu(!showTemplateMenu)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-200 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-slate-300" />
               <span>Templates</span>
@@ -532,10 +531,22 @@ export function BadmintonPageView() {
             </button>
 
             {showTemplateMenu && (
-              <div className="absolute right-0 mt-1.5 w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs animate-in fade-in zoom-in-95 duration-100 text-slate-800">
+              <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 text-xs text-slate-800">
                 <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  CSV Import Templates
+                  Spreadsheet Templates
                 </div>
+                {/* 4-Team Columns Template (matches user's screenshot format) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadCSV(generateTeamColumnsCSV(), 'badminton_4teams_roster.csv');
+                    setShowTemplateMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer font-bold text-blue-700 bg-blue-50/50"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-600" />
+                  <span>4-Team Format (S.No, Red, Blue, Grey, White)</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -545,7 +556,7 @@ export function BadmintonPageView() {
                   className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-500" />
-                  Combined (Singles &amp; Doubles)
+                  <span>Standard Combined List CSV</span>
                 </button>
                 <button
                   type="button"
@@ -555,8 +566,8 @@ export function BadmintonPageView() {
                   }}
                   className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                 >
-                  <Download className="w-3.5 h-3.5 text-blue-500" />
-                  Singles-Only CSV
+                  <Download className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Singles-Only CSV</span>
                 </button>
                 <button
                   type="button"
@@ -567,30 +578,19 @@ export function BadmintonPageView() {
                   className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-purple-500" />
-                  Doubles-Only CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadCSV(generateBlankParticipationCSV(), 'badminton_blank_roster.csv');
-                    setShowTemplateMenu(false);
-                  }}
-                  className="w-full px-3 py-1.5 text-left hover:bg-slate-50 flex items-center gap-2 cursor-pointer border-t border-slate-100"
-                >
-                  <FileText className="w-3.5 h-3.5 text-slate-500" />
-                  Blank Roster Template
+                  <span>Doubles-Only CSV</span>
                 </button>
               </div>
             )}
           </div>
 
-          {/* Reset / Clear All (when participants loaded) */}
-          {participants.length > 0 && (
+          {/* Reset All */}
+          {hasAnyData && (
             <button
               type="button"
               onClick={handleClearAllData}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-300 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 rounded-lg transition-colors cursor-pointer"
-              title="Clear all data and reset to initial state"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-300 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 rounded-xl transition-colors cursor-pointer"
+              title="Reset all participants and brackets"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset All</span>
@@ -600,69 +600,134 @@ export function BadmintonPageView() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. INITIAL STATE — NO DATA LOADED */}
+      {/* INITIAL STATE: THREE CLEAR ACTION CARDS (WHEN NO DATA LOADED) */}
       {/* ========================================================================= */}
-      {participants.length === 0 && (
+      {!hasAnyData && (
         <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-8 sm:p-12 text-center space-y-8 animate-in fade-in duration-200">
           <div className="max-w-2xl mx-auto space-y-3">
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center mx-auto text-3xl shadow-lg shadow-indigo-600/20">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center mx-auto text-3xl shadow-lg shadow-indigo-600/20">
               🏸
             </div>
             <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-              Get Started: Load Employee List
+              Get Started: Load Tournament Data
             </h3>
-            <p className="text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
-              Upload your employee list from Excel or CSV, or load fictional sample data to start generating Singles and Doubles knockout fixtures.
+            <p className="text-sm text-slate-500 leading-relaxed max-w-xl mx-auto">
+              Upload your employee list for Singles and Doubles separately using your 4-team spreadsheet format (<strong>Red</strong>, <strong>Blue</strong>, <strong>Grey</strong>, <strong>White</strong>), or load the company sample roster.
             </p>
           </div>
 
-          {/* Primary Action Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl mx-auto text-left">
-            {/* Card 1: Upload Employee List */}
+          {/* THREE DEDICATED ACTION CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto text-left">
+            {/* Card 1: Upload Singles List */}
             <div
-              onClick={() => fileInputRef.current?.click()}
-              className="p-6 rounded-2xl border-2 border-dashed border-blue-300 hover:border-blue-600 bg-blue-50/30 hover:bg-blue-50/70 transition-all cursor-pointer group space-y-3"
+              onClick={() => singlesFileInputRef.current?.click()}
+              className="p-6 rounded-2xl border-2 border-dashed border-blue-300 hover:border-blue-600 bg-blue-50/40 hover:bg-blue-50/80 transition-all cursor-pointer group flex flex-col justify-between space-y-4"
             >
-              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-                <UploadCloud className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-extrabold text-slate-900 text-base group-hover:text-blue-700 transition-colors">
-                  Upload Employee List
-                </h4>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Upload a CSV or Excel (.xlsx) file containing employee names, assigned teams (White, Red, Blue, Grey), and category registrations.
-                </p>
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                  <User className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-800">
+                      Singles
+                    </span>
+                    <h4 className="font-extrabold text-slate-900 text-base group-hover:text-blue-700">
+                      Upload Singles List
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Upload CSV or Excel file with Red, Blue, Grey, and White columns. Automatically registers all players for Singles, shows team counts, asks for team matchup, and generates alphabetical fixtures.
+                  </p>
+                </div>
               </div>
               <div className="pt-2">
                 <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 group-hover:underline">
-                  <span>Browse files or drop here</span>
+                  <span>Browse Singles File</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>
             </div>
 
-            {/* Card 2: Load Sample Data */}
+            {/* Card 2: Upload Doubles List */}
             <div
-              onClick={handleLoadSampleData}
-              className="p-6 rounded-2xl border-2 border-slate-200 hover:border-indigo-500 bg-slate-50/50 hover:bg-indigo-50/30 transition-all cursor-pointer group space-y-3"
+              onClick={() => doublesFileInputRef.current?.click()}
+              className="p-6 rounded-2xl border-2 border-dashed border-purple-300 hover:border-purple-600 bg-purple-50/40 hover:bg-purple-50/80 transition-all cursor-pointer group flex flex-col justify-between space-y-4"
             >
-              <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-extrabold text-slate-900 text-base group-hover:text-indigo-700 transition-colors">
-                  Load Sample Data
-                </h4>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Try the studio instantly with 28 fictional employees balanced across all four teams with mixed Singles and Doubles registrations.
-                </p>
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-800">
+                      Doubles
+                    </span>
+                    <h4 className="font-extrabold text-slate-900 text-base group-hover:text-purple-700">
+                      Upload Doubles List
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Upload CSV or Excel file for Doubles. All players will automatically be paired within their teams, with pairing review &amp; partner swap before selecting competing teams.
+                  </p>
+                </div>
               </div>
               <div className="pt-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 group-hover:underline">
-                  <span>Load 28 Sample Players</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 group-hover:underline">
+                  <span>Browse Doubles File</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
+              </div>
+            </div>
+
+            {/* Card 3: Load Sample Data */}
+            <div className="p-6 rounded-2xl border-2 border-slate-200 hover:border-indigo-500 bg-slate-50/50 hover:bg-indigo-50/30 transition-all group flex flex-col justify-between space-y-4">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800">
+                      Sample Data
+                    </span>
+                    <h4 className="font-extrabold text-slate-900 text-base group-hover:text-indigo-700">
+                      Load 69 Player Roster
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Try the tournament studio instantly with the 69 company employees (Red: 10, Blue: 23, Grey: 18, White: 18).
+                  </p>
+                </div>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={handleLoadSampleSingles}
+                  className="w-full px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-100/70 hover:bg-blue-200/80 rounded-xl transition-colors text-left flex items-center justify-between cursor-pointer"
+                >
+                  <span>Load for Singles (69 Players)</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadSampleDoubles}
+                  className="w-full px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-100/70 hover:bg-purple-200/80 rounded-xl transition-colors text-left flex items-center justify-between cursor-pointer"
+                >
+                  <span>Load for Doubles (69 Players)</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLoadSampleSingles();
+                    handleLoadSampleDoubles();
+                  }}
+                  className="w-full px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-100/70 hover:bg-indigo-200/80 rounded-xl transition-colors text-left flex items-center justify-between cursor-pointer"
+                >
+                  <span>Load for Both Singles &amp; Doubles</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
               </div>
             </div>
           </div>
@@ -670,13 +735,13 @@ export function BadmintonPageView() {
           {/* Download CSV Templates Link */}
           <div className="pt-2 border-t border-slate-100 max-w-md mx-auto text-center">
             <span className="text-xs text-slate-500">
-              Need a sample spreadsheet format?{' '}
+              Need the spreadsheet template?{' '}
               <button
                 type="button"
-                onClick={() => downloadCSV(generateCombinedParticipationCSV(), 'badminton_combined_template.csv')}
+                onClick={() => downloadCSV(generateTeamColumnsCSV(), 'badminton_4teams_roster.csv')}
                 className="font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer"
               >
-                Download CSV Template
+                Download 4-Team Format CSV
               </button>
             </span>
           </div>
@@ -684,353 +749,679 @@ export function BadmintonPageView() {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. MAIN APPLICATION WORKFLOW (AFTER DATA IS LOADED) */}
+      {/* WORKFLOW NAVIGATION (WHEN AT LEAST ONE CATEGORY HAS DATA LOADED) */}
       {/* ========================================================================= */}
-      {participants.length > 0 && (
+      {hasAnyData && (
         <div className="space-y-6">
-          {/* Main Navigation Pill Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {/* Employee Roster Tab */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Tab 1: Singles Knockout */}
               <button
                 type="button"
-                onClick={() => setActiveTab('employee-roster')}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                  activeTab === 'employee-roster'
-                    ? 'bg-slate-900 text-white shadow-xs'
+                onClick={() => setActiveTab('singles')}
+                className={`px-4 py-2.5 text-xs font-extrabold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
+                  activeTab === 'singles'
+                    ? 'bg-blue-600 text-white shadow-blue-500/20'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                <User className="w-3.5 h-3.5" />
-                <span>Employee List</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                    activeTab === 'employee-roster' ? 'bg-slate-800 text-slate-200' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {participants.length}
-                </span>
-              </button>
-
-              {/* Singles Knockout Tab */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (singlesBracket) {
-                    setActiveTab('singles-fixtures');
-                  } else {
-                    handleGenerateSinglesFixtures();
-                  }
-                }}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                  activeTab === 'singles-fixtures'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <Trophy className="w-3.5 h-3.5" />
+                <User className="w-4 h-4" />
                 <span>Singles Knockout</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                    activeTab === 'singles-fixtures' ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    activeTab === 'singles' ? 'bg-blue-800 text-blue-100' : 'bg-slate-100 text-slate-700'
                   }`}
                 >
-                  {singlesBracket ? `${singlesBracket.totalParticipants} Players` : `${singlesParticipantsCount} Ready`}
+                  {singlesBracket
+                    ? `${singlesBracket.totalParticipants} Players`
+                    : `${singlesParticipants.length} Loaded`}
                 </span>
               </button>
 
-              {/* Doubles Knockout Tab */}
+              {/* Tab 2: Doubles Knockout */}
               <button
                 type="button"
-                onClick={() => {
-                  if (doublesBracket) {
-                    setActiveTab('doubles-fixtures');
-                  } else if (doublesPairs.length > 0) {
-                    setActiveTab('doubles-pairing');
-                  } else {
-                    handleInitiateDoublesWorkflow();
-                  }
-                }}
-                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                  activeTab === 'doubles-fixtures' || activeTab === 'doubles-pairing'
-                    ? 'bg-purple-600 text-white shadow-xs'
+                onClick={() => setActiveTab('doubles')}
+                className={`px-4 py-2.5 text-xs font-extrabold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
+                  activeTab === 'doubles'
+                    ? 'bg-purple-600 text-white shadow-purple-500/20'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                <Users className="w-3.5 h-3.5" />
+                <Users className="w-4 h-4" />
                 <span>Doubles Knockout</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                    activeTab === 'doubles-fixtures' || activeTab === 'doubles-pairing'
-                      ? 'bg-purple-800 text-purple-100'
-                      : 'bg-slate-200 text-slate-700'
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    activeTab === 'doubles' ? 'bg-purple-800 text-purple-100' : 'bg-slate-100 text-slate-700'
                   }`}
                 >
                   {doublesBracket
                     ? `${doublesBracket.totalParticipants} Pairs`
                     : doublesPairs.length > 0
                     ? `${doublesPairs.length} Pairs`
-                    : `${doublesParticipantsCount} Ready`}
+                    : `${doublesParticipants.length} Loaded`}
                 </span>
               </button>
 
-              {/* Import Data View */}
+              {/* Tab 3: Full Roster */}
               <button
                 type="button"
-                onClick={() => setActiveTab('import-data')}
-                className={`px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'import-data'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                onClick={() => setActiveTab('all-roster')}
+                className={`px-3.5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                  activeTab === 'all-roster'
+                    ? 'bg-slate-900 text-white shadow-xs'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                <UploadCloud className="w-3.5 h-3.5" />
-                <span>Import Data</span>
+                <ListOrdered className="w-4 h-4" />
+                <span>Full Roster</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    activeTab === 'all-roster' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {allCombinedParticipants.length}
+                </span>
               </button>
             </div>
 
-            {/* Quick Actions */}
+            {/* Quick Upload Buttons */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl transition-colors cursor-pointer"
+                onClick={() => singlesFileInputRef.current?.click()}
+                className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                Upload File
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Upload Singles</span>
               </button>
               <button
                 type="button"
-                onClick={handleLoadSampleData}
-                className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors cursor-pointer"
+                onClick={() => doublesFileInputRef.current?.click()}
+                className="px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                Load Sample Data
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span>Upload Doubles</span>
               </button>
             </div>
           </div>
 
-          {/* VIEW 1: EMPLOYEE ROSTER & PROMINENT GENERATION BUTTONS */}
-          {activeTab === 'employee-roster' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              {/* Compact Summary Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Total Employees
-                  </span>
-                  <span className="text-2xl font-black text-slate-900 mt-0.5 block">
-                    {participants.length}
-                  </span>
-                  <span className="text-[11px] text-slate-500">Across 4 Teams</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-white border border-blue-200 shadow-2xs bg-blue-50/20">
-                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">
-                    Singles Registered
-                  </span>
-                  <span className="text-2xl font-black text-blue-700 mt-0.5 block">
-                    {singlesParticipantsCount}
-                  </span>
-                  <span className="text-[11px] text-blue-600">
-                    {singlesBracket ? 'Bracket Generated' : 'Ready for Fixtures'}
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-white border border-purple-200 shadow-2xs bg-purple-50/20">
-                  <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider block">
-                    Doubles Registered
-                  </span>
-                  <span className="text-2xl font-black text-purple-700 mt-0.5 block">
-                    {doublesParticipantsCount}
-                  </span>
-                  <span className="text-[11px] text-purple-600">
-                    {doublesPairs.length > 0
-                      ? `${doublesPairs.length} Pairs Formed`
-                      : 'Requires Partner Pairing'}
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Team Distribution
-                  </span>
-                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white">
-                      B: {stats.teamDistribution['Blue Team']?.total || 0}
-                    </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-800">
-                      W: {stats.teamDistribution['White Team']?.total || 0}
-                    </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-600 text-white">
-                      R: {stats.teamDistribution['Red Team']?.total || 0}
-                    </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-white">
-                      G: {stats.teamDistribution['Grey Team']?.total || 0}
-                    </span>
+          {/* ========================================================================= */}
+          {/* 1. SINGLES WORKFLOW VIEW */}
+          {/* ========================================================================= */}
+          {activeTab === 'singles' && (
+            <div className="space-y-6">
+              {/* If no singles data loaded yet, show dedicated upload card for Singles */}
+              {singlesParticipants.length === 0 && (
+                <div className="p-8 bg-white rounded-3xl border border-slate-200 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto text-xl">
+                    🏸
                   </div>
-                </div>
-              </div>
-
-              {/* TWO UNMISSABLE PROMINENT GENERATION ACTION CARDS */}
-              <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-6 shadow-lg border border-slate-800 space-y-4">
-                <div className="space-y-1">
-                  <h3 className="text-base font-extrabold tracking-tight flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-amber-400" />
-                    <span>Generate Tournament Knockout Fixtures</span>
-                  </h3>
-                  <p className="text-xs text-slate-300">
-                    Click an action below to automatically create the single-elimination tournament bracket from the registered participants.
+                  <h4 className="text-lg font-extrabold text-slate-900">
+                    No Singles Participants Loaded Yet
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Upload your Singles participant list (CSV or Excel) or load the 69 company employees.
                   </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                  {/* Action 1: Generate Singles Fixtures */}
-                  <div className="p-4 rounded-xl bg-white/10 border border-white/10 hover:border-blue-400/50 transition-colors flex flex-col justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
-                          <User className="w-4 h-4" />
-                          Singles Championship
-                        </span>
-                        <span className="text-xs font-extrabold px-2 py-0.5 rounded bg-blue-500/30 text-blue-200 border border-blue-400/30">
-                          {singlesParticipantsCount} Eligible Players
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        One-click random shuffle &amp; single-elimination knockout draw for all employees registered for Singles.
-                      </p>
-                    </div>
-
+                  <div className="flex items-center justify-center gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={handleGenerateSinglesFixtures}
-                      disabled={singlesParticipantsCount < 2}
-                      className={`w-full py-2.5 px-4 rounded-xl font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        singlesParticipantsCount >= 2
-                          ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30'
-                          : 'bg-white/10 text-slate-400 cursor-not-allowed'
-                      }`}
+                      onClick={() => singlesFileInputRef.current?.click()}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-2"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      <span>Upload Singles File</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLoadSampleSingles}
+                      className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 cursor-pointer flex items-center gap-2"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>
-                        {singlesParticipantsCount >= 2
-                          ? `Generate Singles Fixtures (${singlesParticipantsCount} Players)`
-                          : 'Requires at least 2 Singles Players'}
-                      </span>
+                      <span>Load 69 Sample Players</span>
                     </button>
                   </div>
+                </div>
+              )}
 
-                  {/* Action 2: Generate Doubles Fixtures */}
-                  <div className="p-4 rounded-xl bg-white/10 border border-white/10 hover:border-purple-400/50 transition-colors flex flex-col justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
-                          <Users className="w-4 h-4" />
-                          Doubles Championship
+              {/* Once Singles Data is loaded, show Employee Counts -> Select Matchup -> Generate */}
+              {singlesParticipants.length > 0 && !singlesBracket && (
+                <div className="space-y-6">
+                  {/* STEP 1: EMPLOYEE COUNTS PER TEAM */}
+                  <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-800">
+                          Step 1 of 2: Employee Counts
                         </span>
-                        <span className="text-xs font-extrabold px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 border border-purple-400/30">
-                          {doublesParticipantsCount} Eligible Players
-                        </span>
+                        <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                          Singles Participants Loaded ({singlesParticipants.length} Players)
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Players listed in <strong>Alphabetical Order (A to Z)</strong> within each team.
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Randomly pairs partners within each team first, opens partnerships for review/approval, then creates the knockout bracket.
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => singlesFileInputRef.current?.click()}
+                          className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-300 rounded-xl cursor-pointer"
+                        >
+                          Upload New File
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSinglesParticipants([])}
+                          className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl cursor-pointer"
+                        >
+                          Clear Singles
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Team Distribution & Alphabetical Player List */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {TEAM_NAMES.map((team) => {
+                        const teamPlayers = singlesByTeam.get(team) || [];
+                        const isTeamA = team === singlesTeamA;
+                        const isTeamB = team === singlesTeamB;
+
+                        return (
+                          <div
+                            key={team}
+                            className={`p-4 rounded-2xl border transition-all ${
+                              isTeamA || isTeamB
+                                ? 'border-blue-500 bg-blue-50/30 ring-2 ring-blue-500/20'
+                                : 'border-slate-200 bg-slate-50/50'
+                            } space-y-3`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold ${getTeamBadge(team)}`}>
+                                {team}
+                              </span>
+                              <span className="text-xs font-black text-slate-800">
+                                {teamPlayers.length} Players
+                              </span>
+                            </div>
+
+                            <div className="max-h-48 overflow-y-auto space-y-1 pr-1 text-xs divide-y divide-slate-100">
+                              {teamPlayers.map((p, idx) => (
+                                <div
+                                  key={p.id}
+                                  className="flex items-center justify-between py-1 text-[11px]"
+                                >
+                                  <span className="font-bold text-slate-800 truncate mr-1">
+                                    {idx + 1}. {p.name}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 uppercase font-mono">
+                                    {p.id.replace('EMP-', '')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* STEP 2: SELECT WHICH TWO TEAMS FACE EACH OTHER */}
+                  <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+                    <div className="border-b border-slate-100 pb-3">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 text-blue-800">
+                        Step 2 of 2: Set Competing Teams
+                      </span>
+                      <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                        Which Two Teams Are Going to Face Each Other?
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Choose the two competing teams. Singles fixtures will pair each team&apos;s players in <strong>alphabetical order head-to-head</strong> (Team A #1 vs Team B #1, Team A #2 vs Team B #2, etc.).
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleInitiateDoublesWorkflow}
-                      disabled={doublesParticipantsCount < 2}
-                      className={`w-full py-2.5 px-4 rounded-xl font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                        doublesParticipantsCount >= 2
-                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-purple-600/30'
-                          : 'bg-white/10 text-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      <Users className="w-4 h-4" />
-                      <span>
-                        {doublesParticipantsCount >= 2
-                          ? `Generate Doubles Fixtures (${doublesParticipantsCount} Players)`
-                          : 'Requires at least 2 Doubles Players'}
-                      </span>
-                    </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Primary Matchup Box */}
+                      <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 space-y-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900 block">
+                          Primary Matchup
+                        </span>
+
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-600 uppercase">Team A</label>
+                            <select
+                              value={singlesTeamA}
+                              onChange={(e) => {
+                                const newA = e.target.value as TeamName;
+                                setSinglesTeamA(newA);
+                                if (newA === singlesTeamB) {
+                                  const other = TEAM_NAMES.find((t) => t !== newA)!;
+                                  setSinglesTeamB(other);
+                                }
+                              }}
+                              className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            >
+                              {TEAM_NAMES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t} ({singlesByTeam.get(t)?.length || 0} players)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="pt-4 text-xs font-black text-blue-600">VS</div>
+
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-600 uppercase">Team B</label>
+                            <select
+                              value={singlesTeamB}
+                              onChange={(e) => setSinglesTeamB(e.target.value as TeamName)}
+                              className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            >
+                              {TEAM_NAMES.filter((t) => t !== singlesTeamA).map((t) => (
+                                <option key={t} value={t}>
+                                  {t} ({singlesByTeam.get(t)?.length || 0} players)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Complementary Matchup Box */}
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                          Complementary Matchup
+                        </span>
+                        <div className="pt-2 flex items-center justify-between text-xs font-bold text-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold ${getTeamBadge(singlesComplementary[0])}`}>
+                              {singlesComplementary[0]}
+                            </span>
+                            <span className="text-slate-500">({singlesByTeam.get(singlesComplementary[0])?.length || 0} players)</span>
+                          </div>
+                          <span className="text-xs font-black text-slate-400">VS</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold ${getTeamBadge(singlesComplementary[1])}`}>
+                              {singlesComplementary[1]}
+                            </span>
+                            <span className="text-slate-500">({singlesByTeam.get(singlesComplementary[1])?.length || 0} players)</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-500 italic">
+                          Automatically computed from remaining teams to balance the knockout draw.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Prominent Generate Button */}
+                    <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="text-xs text-slate-600">
+                        Teams selected: <strong>{singlesTeamA}</strong> vs <strong>{singlesTeamB}</strong> &amp; <strong>{singlesComplementary[0]}</strong> vs <strong>{singlesComplementary[1]}</strong>.
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleGenerateSinglesFixtures}
+                        className="w-full sm:w-auto px-6 py-3 rounded-2xl font-black text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>Generate Singles Fixtures</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Employee Table with Search, Filter & Editing */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
-                    Registered Employee Participants
-                  </h3>
-                  <span className="text-xs text-slate-500">
-                    Showing all registered employees across Guindy and Vandaloor.
-                  </span>
+              {/* If Singles Bracket is generated, show the Knockout Bracket View */}
+              {singlesBracket && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800">
+                        Fixtures Active
+                      </span>
+                      <span className="text-xs font-bold text-slate-800">
+                        Singles Knockout Bracket ({singlesBracket.totalParticipants} Players)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSinglesBracket(null)}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-300 rounded-xl cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reconfigure Matchup / Regenerate</span>
+                    </button>
+                  </div>
+
+                  <KnockoutBracketView
+                    category="Singles"
+                    participants={singlesParticipants}
+                    doublesPairs={doublesPairs}
+                    onDoublesPairsChange={setDoublesPairs}
+                    bracket={singlesBracket}
+                    onBracketChange={setSinglesBracket}
+                    otherCategoryBracket={doublesBracket}
+                    settings={settings}
+                    onBackToRoster={() => setSinglesBracket(null)}
+                  />
                 </div>
-                <ParticipantsTable
-                  participants={participants}
-                  filterCategory="All"
-                  onUpdateParticipant={handleUpdateParticipant}
-                  onDeleteParticipant={handleDeleteParticipant}
-                  onAddParticipant={handleAddParticipant}
-                />
-              </div>
+              )}
             </div>
           )}
 
-          {/* VIEW 2: DOUBLES PARTNER PAIRING REVIEW (STEP 4) */}
-          {activeTab === 'doubles-pairing' && (
-            <DoublesPairingReview
-              participants={participants}
-              doublesPairs={doublesPairs}
-              onDoublesPairsChange={setDoublesPairs}
-              onRegeneratePairs={() => {
-                const refreshed = generateDoublesPairs(participants, doublesPairs);
-                setDoublesPairs(refreshed);
-              }}
-              onConfirmAndGenerateFixtures={handleConfirmAndGenerateDoublesBracket}
-              onBackToRoster={() => setActiveTab('employee-roster')}
-            />
+          {/* ========================================================================= */}
+          {/* 2. DOUBLES WORKFLOW VIEW */}
+          {/* ========================================================================= */}
+          {activeTab === 'doubles' && (
+            <div className="space-y-6">
+              {/* If no doubles data loaded yet, show dedicated upload card for Doubles */}
+              {doublesParticipants.length === 0 && (
+                <div className="p-8 bg-white rounded-3xl border border-slate-200 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mx-auto text-xl">
+                    👥
+                  </div>
+                  <h4 className="text-lg font-extrabold text-slate-900">
+                    No Doubles Participants Loaded Yet
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Upload your Doubles participant list (CSV or Excel) or load the 69 company employees. Players will be paired within their teams.
+                  </p>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => doublesFileInputRef.current?.click()}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-2"
+                    >
+                      <UploadCloud className="w-4 h-4" />
+                      <span>Upload Doubles File</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleLoadSampleDoubles}
+                      className="px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs rounded-xl border border-purple-200 cursor-pointer flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Load 69 Sample Players</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Once Doubles Data is loaded:
+                  1. Shows Employee Counts
+                  2. Extra Flow: Partner Pairing within Teams
+                  3. Select Matchup: Which two teams face each other
+                  4. Generate Doubles Fixtures Button */}
+              {doublesParticipants.length > 0 && !doublesBracket && (
+                <div className="space-y-6">
+                  {/* Summary Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-black">
+                        {doublesParticipants.length}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-extrabold text-slate-900">
+                          Doubles Participants &amp; Team Counts
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          {doublesParticipants.length} players loaded across Red ({doublesByTeam.get('Red Team')?.length || 0}), Blue ({doublesByTeam.get('Blue Team')?.length || 0}), Grey ({doublesByTeam.get('Grey Team')?.length || 0}), White ({doublesByTeam.get('White Team')?.length || 0}).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => doublesFileInputRef.current?.click()}
+                        className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-300 rounded-xl cursor-pointer"
+                      >
+                        Upload New File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDoublesParticipants([]);
+                          setDoublesPairs([]);
+                        }}
+                        className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl cursor-pointer"
+                      >
+                        Clear Doubles
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* EXTRA FLOW FOR DOUBLES: PARTNER PAIRING WITHIN TEAMS */}
+                  <div className="space-y-3">
+                    <DoublesPairingReview
+                      participants={doublesParticipants}
+                      doublesPairs={doublesPairs}
+                      onDoublesPairsChange={setDoublesPairs}
+                      onRegeneratePairs={() => {
+                        const refreshed = generateDoublesPairs(doublesParticipants, doublesPairs);
+                        setDoublesPairs(refreshed);
+                      }}
+                      onConfirmAndGenerateFixtures={handleGenerateDoublesFixtures}
+                      onBackToRoster={() => setDoublesParticipants([])}
+                    />
+                  </div>
+
+                  {/* SELECT WHICH TWO TEAMS FACE EACH OTHER IN DOUBLES */}
+                  <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+                    <div className="border-b border-slate-100 pb-3">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-purple-100 text-purple-800">
+                        Doubles Matchup Selection
+                      </span>
+                      <h3 className="text-base font-extrabold text-slate-900 mt-1">
+                        Which Two Teams Are Going to Face Each Other in Doubles?
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Select the competing teams. Their paired partnerships will compete head-to-head in the doubles knockout bracket.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Primary Matchup Box */}
+                      <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 space-y-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 block">
+                          Primary Matchup
+                        </span>
+
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-600 uppercase">Team A</label>
+                            <select
+                              value={doublesTeamA}
+                              onChange={(e) => {
+                                const newA = e.target.value as TeamName;
+                                setDoublesTeamA(newA);
+                                if (newA === doublesTeamB) {
+                                  const other = TEAM_NAMES.find((t) => t !== newA)!;
+                                  setDoublesTeamB(other);
+                                }
+                              }}
+                              className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                            >
+                              {TEAM_NAMES.map((t) => {
+                                const pCount = doublesPairs.filter((p) => p.team === t).length;
+                                return (
+                                  <option key={t} value={t}>
+                                    {t} ({pCount} pairs)
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+
+                          <div className="pt-4 text-xs font-black text-purple-600">VS</div>
+
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[10px] font-bold text-slate-600 uppercase">Team B</label>
+                            <select
+                              value={doublesTeamB}
+                              onChange={(e) => setDoublesTeamB(e.target.value as TeamName)}
+                              className="w-full px-3 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                            >
+                              {TEAM_NAMES.filter((t) => t !== doublesTeamA).map((t) => {
+                                const pCount = doublesPairs.filter((p) => p.team === t).length;
+                                return (
+                                  <option key={t} value={t}>
+                                    {t} ({pCount} pairs)
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Complementary Matchup Box */}
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                          Complementary Matchup
+                        </span>
+                        <div className="pt-2 flex items-center justify-between text-xs font-bold text-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold ${getTeamBadge(doublesComplementary[0])}`}>
+                              {doublesComplementary[0]}
+                            </span>
+                            <span className="text-slate-500">
+                              ({doublesPairs.filter((p) => p.team === doublesComplementary[0]).length} pairs)
+                            </span>
+                          </div>
+                          <span className="text-xs font-black text-slate-400">VS</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold ${getTeamBadge(doublesComplementary[1])}`}>
+                              {doublesComplementary[1]}
+                            </span>
+                            <span className="text-slate-500">
+                              ({doublesPairs.filter((p) => p.team === doublesComplementary[1]).length} pairs)
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-500 italic">
+                          Automatically computed from remaining teams for bracket balance.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Prominent Generate Button */}
+                    <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="text-xs text-slate-600">
+                        Doubles pairings confirmed. Ready to generate single-elimination tournament bracket.
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleGenerateDoublesFixtures}
+                        className="w-full sm:w-auto px-6 py-3 rounded-2xl font-black text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+                      >
+                        <Users className="w-4 h-4 text-purple-200" />
+                        <span>Generate Doubles Fixtures</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* If Doubles Bracket is generated, show the Knockout Bracket View */}
+              {doublesBracket && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-800">
+                        Fixtures Active
+                      </span>
+                      <span className="text-xs font-bold text-slate-800">
+                        Doubles Knockout Bracket ({doublesBracket.totalParticipants} Pairs)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDoublesBracket(null)}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-300 rounded-xl cursor-pointer flex items-center gap-1.5"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Reconfigure Matchup / Manage Pairs</span>
+                    </button>
+                  </div>
+
+                  <KnockoutBracketView
+                    category="Doubles"
+                    participants={doublesParticipants}
+                    doublesPairs={doublesPairs}
+                    onDoublesPairsChange={setDoublesPairs}
+                    bracket={doublesBracket}
+                    onBracketChange={setDoublesBracket}
+                    otherCategoryBracket={singlesBracket}
+                    settings={settings}
+                    onBackToRoster={() => setDoublesBracket(null)}
+                    onManagePartners={() => setDoublesBracket(null)}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
-          {/* VIEW 3: SINGLES KNOCKOUT BRACKET */}
-          {activeTab === 'singles-fixtures' && (
-            <KnockoutBracketView
-              category="Singles"
-              participants={participants}
-              doublesPairs={doublesPairs}
-              onDoublesPairsChange={setDoublesPairs}
-              bracket={singlesBracket}
-              onBracketChange={setSinglesBracket}
-              otherCategoryBracket={doublesBracket}
-              settings={settings}
-              onBackToRoster={() => setActiveTab('employee-roster')}
-            />
-          )}
+          {/* ========================================================================= */}
+          {/* 3. FULL ROSTER TABLE VIEW */}
+          {/* ========================================================================= */}
+          {activeTab === 'all-roster' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    All Registered Participants ({allCombinedParticipants.length})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Combined view of participants registered across Singles and Doubles tournaments.
+                  </p>
+                </div>
 
-          {/* VIEW 4: DOUBLES KNOCKOUT BRACKET */}
-          {activeTab === 'doubles-fixtures' && (
-            <KnockoutBracketView
-              category="Doubles"
-              participants={participants}
-              doublesPairs={doublesPairs}
-              onDoublesPairsChange={setDoublesPairs}
-              bracket={doublesBracket}
-              onBracketChange={setDoublesBracket}
-              otherCategoryBracket={singlesBracket}
-              settings={settings}
-              onBackToRoster={() => setActiveTab('employee-roster')}
-              onManagePartners={() => setActiveTab('doubles-pairing')}
-            />
-          )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSinglesParticipants(getRealCompanyParticipants('singles'));
+                      setDoublesParticipants(getRealCompanyParticipants('doubles'));
+                      const pairs = generateDoublesPairs(getRealCompanyParticipants('doubles'), []);
+                      setDoublesPairs(pairs);
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl cursor-pointer"
+                  >
+                    Load 69 Player Roster for Both
+                  </button>
+                </div>
+              </div>
 
-          {/* VIEW 5: IMPORT DATA */}
-          {activeTab === 'import-data' && (
-            <ParticipantImportView
-              existingParticipants={participants}
-              onImportComplete={handleImportComplete}
-              onCancel={() => setActiveTab('employee-roster')}
-            />
+              <ParticipantsTable
+                participants={allCombinedParticipants}
+                filterCategory="All"
+                onUpdateParticipant={(updated) => {
+                  if (updated.singlesRegistered) {
+                    setSinglesParticipants((prev) =>
+                      prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+                    );
+                  }
+                  if (updated.doublesRegistered) {
+                    setDoublesParticipants((prev) =>
+                      prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+                    );
+                  }
+                }}
+                onDeleteParticipant={(id) => {
+                  setSinglesParticipants((prev) => prev.filter((p) => p.id !== id));
+                  setDoublesParticipants((prev) => prev.filter((p) => p.id !== id));
+                }}
+                onAddParticipant={(newP) => {
+                  if (newP.singlesRegistered) setSinglesParticipants((prev) => [...prev, newP]);
+                  if (newP.doublesRegistered) setDoublesParticipants((prev) => [...prev, newP]);
+                }}
+              />
+            </div>
           )}
         </div>
       )}

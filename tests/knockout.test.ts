@@ -23,7 +23,8 @@ import {
   generateKnockoutFixtureListPDF,
   generateCombinedKnockoutFixtureListPDF,
 } from '@/lib/export/pdf-fixture-export';
-import { SAMPLE_PARTICIPANTS } from '@/lib/badminton/sample-data';
+import { SAMPLE_PARTICIPANTS, getRealCompanyParticipants, generateTeamColumnsCSV } from '@/lib/badminton/sample-data';
+import { isTeamColumnsLayout, processParticipantRows } from '@/lib/badminton/participant-import';
 import { DEFAULT_SCHEDULING_SETTINGS } from '@/types/fixture';
 import { Participant } from '@/types/badminton';
 import { DoublesPair } from '@/types/knockout';
@@ -542,4 +543,73 @@ describe('Knockout Tournament Generator System', () => {
       expect(doc.internal.pages.length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  // 8. 4-Team Column Layout & Alphabetical Seeding
+  describe('4-Team Column Layout & Alphabetical Fixture Seeding', () => {
+    it('detects and parses 4-team column layout (Red, Blue, Grey, White) with 69 players', () => {
+      const rawRows = [
+        { 'S.No': 1, 'Red': 'John Ebenezer JayaBabu', 'Blue': 'Ananth Sridev Murugiah', 'Grey': 'Balaji Venkatrathinam', 'White': 'Aakash Prasath-DT Intern' },
+        { 'S.No': 2, 'Red': 'Josper Kingston Rejnald Sundar', 'Blue': 'Anbu Ramalingam', 'Grey': 'Bhuvaneshwari Udaya Soorian', 'White': 'Aathithya Kathiresan Sivabalan' },
+        { 'S.No': 3, 'Red': '', 'Blue': 'Anil Kapoor Gangadharan', 'Grey': 'Elangovan Gopal', 'White': 'Abinaya Vilangaiah' },
+      ];
+
+      expect(isTeamColumnsLayout(rawRows)).toBe(true);
+
+      const { result } = processParticipantRows(rawRows, 'singles-only');
+      expect(result.validRows).toBe(11); // 2 Red + 3 Blue + 3 Grey + 3 White = 11
+
+      const redPlayers = result.participants.filter((p) => p.team === 'Red Team');
+      expect(redPlayers).toHaveLength(2);
+      expect(redPlayers[0].name).toBe('John Ebenezer JayaBabu');
+      expect(redPlayers[1].name).toBe('Josper Kingston Rejnald Sundar');
+    });
+
+    it('creates Singles fixtures pairing competing teams in alphabetical order', () => {
+      const participants = getRealCompanyParticipants('singles');
+      expect(participants).toHaveLength(67);
+
+      const bracket = createKnockoutBracket(
+        'Singles',
+        participants,
+        [],
+        { category: 'Singles', firstTeamA: 'Red Team', firstTeamB: 'White Team' },
+        DEFAULT_SCHEDULING_SETTINGS
+      );
+
+      const r1 = bracket.rounds[0];
+      // Match 1 should feature Red #1 alphabetically vs White #1 alphabetically
+      const match1 = r1.matches[0];
+      expect(match1.sideA.participant?.team).toBe('Red Team');
+      expect(match1.sideB.participant?.team).toBe('White Team');
+
+      // AnilKumar Babulal is the first Red player alphabetically
+      expect(match1.sideA.participant?.displayName).toBe('AnilKumar Babulal');
+      // Aakash Prasath-DT Intern is the first White player alphabetically
+      expect(match1.sideB.participant?.displayName).toBe('Aakash Prasath-DT Intern');
+
+      // Match 2 should feature complementary teams (Blue vs Grey)
+      const match2 = r1.matches[1];
+      const match2Teams = [match2.sideA.participant?.team, match2.sideB.participant?.team];
+      expect(match2Teams).toContain('Blue Team');
+      expect(match2Teams).toContain('Grey Team');
+    });
+
+    it('pairs doubles participants within teams in alphabetical order and handles odd counts', () => {
+      const participants = getRealCompanyParticipants('doubles');
+      const pairs = generateDoublesPairs(participants, []);
+
+      // Red has 13 players -> 6 pairs
+      const redPairs = pairs.filter((p) => p.team === 'Red Team');
+      expect(redPairs).toHaveLength(6);
+
+      // Blue has 19 players -> 9 pairs, 1 unpaired
+      const bluePairs = pairs.filter((p) => p.team === 'Blue Team');
+      expect(bluePairs).toHaveLength(9);
+
+      const summary = getDoublesPairingSummary(participants, pairs);
+      const blueSummary = summary.unpairedByTeam.find((t) => t.team === 'Blue Team');
+      expect(blueSummary?.unpaired).toHaveLength(1);
+    });
+  });
 });
+

@@ -450,3 +450,154 @@ export function generateBlankParticipationCSV(): string {
   ];
   return [headers.join(','), ...examples].join('\r\n');
 }
+
+/**
+ * Real Company Employee Roster from User Input Spreadsheet (BADMINTON DOUBLES)
+ * Exactly partitioned into Red (13), Blue (19), Grey (18), and White (17).
+ */
+export const REAL_COMPANY_ROSTER_NAMES = {
+  Red: [
+    'AnilKumar Babulal',
+    'John Ebenezer JayaBabu',
+    'Josper Kingston Rejnald Sundar',
+    'Karan Arumugam',
+    'Kiruba Raj Senthil Kumar',
+    'Krishnaprasath Jayaseelan',
+    'Malcom Marshal Yovan',
+    'Naresh Subramanyam',
+    'Sai Pavan Kumar Bandaru Ramakrishna Rao B',
+    'Sivananth Muthuraja',
+    'Sriselvasujitha Sivanatarajan',
+    'Srivatsa Sundaram',
+    'Vivek Meenakshi Sundaram',
+  ],
+  Blue: [
+    'Ananth Sridev Murugiah',
+    'Anbu Ramalingam',
+    'Anil Kapoor Gangadharan',
+    'Anitha Mohanarangam',
+    'Balaji Nammazhwar',
+    'Dhanush prakash Chandra Mohan',
+    'Dinesh Baskaran',
+    'Manjusri Senthil Kumar',
+    'Manojkumar Rajasekaran',
+    'Padmapriya Baskaran',
+    'Penchal Venkata Prasad Amavarapu',
+    'Prabu Srikanth',
+    'Sailada Niharika Sailda Tirupati rao naidu',
+    'Saravanan Ravikumar',
+    'Sathiyaraj Vasudevan',
+    'Sushanth Kumar Radhakrishnan',
+    'Tamilarasan Kitnasamy',
+    'Thompson Inigo Saleth Rajan',
+    'Zubaitha Aafrin Hameedudeen',
+  ],
+  Grey: [
+    'Balaji Venkatrathinam',
+    'Elangovan Gopal',
+    'Kamaraj Jayaraman',
+    'Mohammed Mubeen Khaleel Rahiman',
+    'Mohammed Rasool Basith Mohamed Farook',
+    'Narun Aswin Kannan',
+    'Naveen Arokiya Raj John Adiaikalaraj',
+    'Neeraj Iyyapparajan',
+    'Nishanth S-DT Intern',
+    'Rajini Veeramani',
+    'Sathishkumar Chezhian',
+    'Siva Shanmugam Ananthappan',
+    'Sneha Sathish Kumar',
+    'Suchitra Jothi Mani',
+    'Sunil Chakkaravarthi',
+    'Venkatesh Kumar Rajamohan',
+    'Vignesh Arumugam',
+    'Vignesh Raju',
+  ],
+  White: [
+    'Aakash Prasath-DT Intern',
+    'Aathithya Kathiresan Sivabalan',
+    'Anies Godwin Sam Joseph',
+    'Arunkumar Asokan',
+    'Benjamin Barnabas',
+    'Hebhzibah Mathew Reji',
+    'Jothi Bash Nagarajan',
+    'Muthamperumal Madhevanpillai',
+    'Nithya Gopalasamy',
+    'Pillaiyarsamy Thangavel',
+    'Pugazhendhi Dharmalingam',
+    'Sonu Jacob Zachariah',
+    'Sridevanand Rajendran',
+    'Surya Prakash Vijaya Kumar',
+    'Thamizhkani Thirumoorthy',
+    'Vignesh Srinivasan - IT',
+    'Vinoth Kumar Balakrishnan',
+  ],
+};
+
+/**
+ * Returns complete Participant array for the company employees
+ */
+export function getRealCompanyParticipants(
+  mode: 'singles' | 'doubles' | 'both' = 'both'
+): Participant[] {
+  const participants: Participant[] = [];
+  const teamMapping: Record<string, TeamName> = {
+    Red: 'Red Team',
+    Blue: 'Blue Team',
+    Grey: 'Grey Team',
+    White: 'White Team',
+  };
+
+  let globalIdx = 1;
+  (Object.keys(REAL_COMPANY_ROSTER_NAMES) as Array<keyof typeof REAL_COMPANY_ROSTER_NAMES>).forEach(
+    (key) => {
+      const names = REAL_COMPANY_ROSTER_NAMES[key];
+      const team = teamMapping[key];
+
+      names.forEach((name, idx) => {
+        participants.push({
+          id: `EMP-${key.toUpperCase().substring(0, 3)}-${String(idx + 1).padStart(3, '0')}`,
+          name,
+          team,
+          office: (idx % 2 === 0 ? 'Guindy' : 'Vandaloor') as any,
+          gender: (idx % 4 === 1 ? 'Women' : 'Men') as any,
+          singlesRegistered: mode === 'singles' || mode === 'both',
+          doublesRegistered: mode === 'doubles' || mode === 'both',
+          source: 'sample',
+          createdAt: Date.now() + globalIdx++,
+        });
+      });
+    }
+  );
+
+  return participants;
+}
+
+/**
+ * Generates CSV text matching the exact format from user's latest spreadsheet:
+ * BADMINTON DOUBLES
+ * S.No,Red Team,Blue Team,Grey Team,White Team
+ */
+export function generateTeamColumnsCSV(): string {
+  const titleLine = 'BADMINTON DOUBLES,,,,';
+  const headers = ['S.No', 'Red Team', 'Blue Team', 'Grey Team', 'White Team'];
+  const maxRows = Math.max(
+    REAL_COMPANY_ROSTER_NAMES.Red.length,
+    REAL_COMPANY_ROSTER_NAMES.Blue.length,
+    REAL_COMPANY_ROSTER_NAMES.Grey.length,
+    REAL_COMPANY_ROSTER_NAMES.White.length
+  );
+
+  const lines = [titleLine, headers.join(',')];
+  for (let i = 0; i < maxRows; i++) {
+    const sNo = i + 1;
+    const red = REAL_COMPANY_ROSTER_NAMES.Red[i] ? `"${REAL_COMPANY_ROSTER_NAMES.Red[i]}"` : '';
+    const blue = REAL_COMPANY_ROSTER_NAMES.Blue[i] ? `"${REAL_COMPANY_ROSTER_NAMES.Blue[i]}"` : '';
+    const grey = REAL_COMPANY_ROSTER_NAMES.Grey[i] ? `"${REAL_COMPANY_ROSTER_NAMES.Grey[i]}"` : '';
+    const white = REAL_COMPANY_ROSTER_NAMES.White[i] ? `"${REAL_COMPANY_ROSTER_NAMES.White[i]}"` : '';
+    lines.push([sNo, red, blue, grey, white].join(','));
+  }
+
+  return lines.join('\r\n');
+}
+
+

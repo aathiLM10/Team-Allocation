@@ -70,12 +70,12 @@ export function generateDoublesPairs(
 
   TEAM_NAMES.forEach((team) => {
     const pool = availableByTeam.get(team) || [];
-    // Shuffle pool for fairness
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    // Sort pool in alphabetical order by name for fair deterministic pairing
+    const sorted = [...pool].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 
-    for (let i = 0; i < shuffled.length - 1; i += 2) {
-      const p1 = shuffled[i];
-      const p2 = shuffled[i + 1];
+    for (let i = 0; i < sorted.length - 1; i += 2) {
+      const p1 = sorted[i];
+      const p2 = sorted[i + 1];
 
       newPairs.push({
         id: `PAIR_${String(pairCounter).padStart(2, '0')}`,
@@ -309,40 +309,53 @@ export function createKnockoutBracket(
 
   const finalSeededSlots: (KnockoutParticipantEntry | null)[] = new Array(bracketSize).fill(null);
 
-  // Pool of available entries per team (shuffled randomly)
-  const poolA = [...(entriesByTeam.get(firstTeamA) || [])].sort(() => Math.random() - 0.5);
-  const poolB = [...(entriesByTeam.get(firstTeamB) || [])].sort(() => Math.random() - 0.5);
-  const poolC = [...(entriesByTeam.get(compA) || [])].sort(() => Math.random() - 0.5);
-  const poolD = [...(entriesByTeam.get(compB) || [])].sort(() => Math.random() - 0.5);
+  // Sort pool of entries per team in alphabetical order
+  const sortAlpha = (a: KnockoutParticipantEntry, b: KnockoutParticipantEntry) =>
+    a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id);
+
+  const poolA = [...(entriesByTeam.get(firstTeamA) || [])].sort(sortAlpha);
+  const poolB = [...(entriesByTeam.get(firstTeamB) || [])].sort(sortAlpha);
+  const poolC = [...(entriesByTeam.get(compA) || [])].sort(sortAlpha);
+  const poolD = [...(entriesByTeam.get(compB) || [])].sort(sortAlpha);
 
   const popNext = (list: KnockoutParticipantEntry[]): KnockoutParticipantEntry | null => {
     return list.length > 0 ? list.shift()! : null;
   };
 
-  // Match 0: Team A vs Team B (Slots 0 and 1)
-  if (poolA.length > 0) finalSeededSlots[0] = popNext(poolA);
-  if (poolB.length > 0) finalSeededSlots[1] = popNext(poolB);
-
-  // Match 1: Complementary Team C vs Team D (Slots 2 and 3)
-  if (playedMatchesInR1 >= 2) {
-    if (poolC.length > 0) finalSeededSlots[2] = popNext(poolC);
-    if (poolD.length > 0) finalSeededSlots[3] = popNext(poolD);
-  } else if (totalMatchesInR1 >= 2) {
-    if (poolC.length > 0) finalSeededSlots[2] = popNext(poolC);
+  // Pair played matches alternating between (Team A vs Team B) and (Team C vs Team D) in alphabetical order
+  for (let m = 0; m < playedMatchesInR1; m++) {
+    if (m % 2 === 0) {
+      // Primary matchup: Team A vs Team B
+      if (poolA.length > 0 && poolB.length > 0) {
+        finalSeededSlots[m * 2] = popNext(poolA);
+        finalSeededSlots[m * 2 + 1] = popNext(poolB);
+      } else if (poolC.length > 0 && poolD.length > 0) {
+        finalSeededSlots[m * 2] = popNext(poolC);
+        finalSeededSlots[m * 2 + 1] = popNext(poolD);
+      }
+    } else {
+      // Complementary matchup: Team C vs Team D
+      if (poolC.length > 0 && poolD.length > 0) {
+        finalSeededSlots[m * 2] = popNext(poolC);
+        finalSeededSlots[m * 2 + 1] = popNext(poolD);
+      } else if (poolA.length > 0 && poolB.length > 0) {
+        finalSeededSlots[m * 2] = popNext(poolA);
+        finalSeededSlots[m * 2 + 1] = popNext(poolB);
+      }
+    }
   }
 
-  // Collect all remaining unplaced entries and shuffle them
+  // Collect all remaining unplaced entries in alphabetical order
   const usedIds = new Set<string>();
   finalSeededSlots.forEach((s) => {
     if (s) usedIds.add(s.id);
   });
   const unplacedEntries = entries
     .filter((e) => !usedIds.has(e.id))
-    .sort(() => Math.random() - 0.5);
+    .sort(sortAlpha);
   let unplacedIdx = 0;
 
-  // Fill remaining slots:
-  // For played matches (0 to playedMatchesInR1 - 1): both slots (2m, 2m+1) are filled
+  // Fill remaining slots in played matches:
   for (let m = 0; m < playedMatchesInR1; m++) {
     if (finalSeededSlots[m * 2] === null && unplacedIdx < unplacedEntries.length) {
       finalSeededSlots[m * 2] = unplacedEntries[unplacedIdx++];
